@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box, ShieldAlert } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES } from '../types';
 import { generateSaleInvoicePDF, generateWhatsAppBillLink } from '../lib/pdf';
@@ -23,7 +23,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
 
-  // Clean, focused line items list for outward dispatch
+  // Line items for outward dispatch
   const [lineItems, setLineItems] = useState<SaleLineItem[]>([]);
 
   // Selected Sale Preview Modal
@@ -34,6 +34,34 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
   const [newCustName, setNewCustName] = useState<string>('');
   const [newCustPhone, setNewCustPhone] = useState<string>('');
   const [newCustShop, setNewCustShop] = useState<string>('');
+
+  // Helper to get exact stock available for a given crate size & grade
+  const getMaxAvailableForLine = (crateSize: CrateSize, grade?: string): number => {
+    const gradeStock = appState.inventory.gradeStocks?.find(
+      g => g.crateSize === crateSize && g.grade === (grade || 'Grade A (Top Red)')
+    );
+    if (gradeStock !== undefined) {
+      return Math.max(0, gradeStock.count);
+    }
+    return crateSize === 'Small' ? Math.max(0, appState.inventory.smallCratesCount) : Math.max(0, appState.inventory.bigCratesCount);
+  };
+
+  // Helper to get remaining available stock for a line item accounting for other lines in current form
+  const getRemainingAvailableForLine = (lineIndex: number, crateSize: CrateSize, grade?: string): number => {
+    const totalMax = getMaxAvailableForLine(crateSize, grade);
+    const targetGrade = grade || 'Grade A (Top Red)';
+
+    const usedByOtherLines = lineItems.reduce((sum, item, idx) => {
+      if (idx === lineIndex) return sum;
+      const itemGrade = item.grade || 'Grade A (Top Red)';
+      if (item.crateSize === crateSize && itemGrade === targetGrade) {
+        return sum + (item.quantity || 0);
+      }
+      return sum;
+    }, 0);
+
+    return Math.max(0, totalMax - usedByOtherLines);
+  };
 
   // Helper to build list of in-stock / available categories
   const getAvailableStockCategories = () => {
@@ -58,11 +86,14 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
   const availableCategories = getAvailableStockCategories();
 
-  // Reset lines when modal opens
+  // Reset lines when modal opens with strict stock initialization
   useEffect(() => {
     if (isOpenModal) {
       const customer = appState.customers.find(c => c.id === selectedCustomerId);
       const firstCat = availableCategories[0] || { crateSize: 'Small', grade: 'Grade A (Top Red)', count: 0, avgCost: 300 };
+      const maxAvail = getMaxAvailableForLine(firstCat.crateSize, firstCat.grade);
+      const initialQty = Math.min(10, maxAvail);
+
       const defaultRate = firstCat.crateSize === 'Small'
         ? (customer?.defaultSellingRateSmall || 340)
         : (customer?.defaultSellingRateBig || 580);
@@ -71,9 +102,9 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
         {
           crateSize: firstCat.crateSize,
           grade: firstCat.grade,
-          quantity: 10,
+          quantity: initialQty,
           ratePerCrate: defaultRate,
-          total: 10 * defaultRate,
+          total: initialQty * defaultRate,
         }
       ]);
       setPaidAmount(0);
@@ -83,17 +114,19 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
   const addLineItem = () => {
     const firstCat = availableCategories[0] || { crateSize: 'Small', grade: 'Grade A (Top Red)', count: 0, avgCost: 300 };
+    const maxAvail = getRemainingAvailableForLine(lineItems.length, firstCat.crateSize, firstCat.grade);
     const customer = appState.customers.find(c => c.id === selectedCustomerId);
     const defaultRate = customer?.defaultSellingRateSmall || 340;
+    const initialQty = Math.min(5, maxAvail);
 
     setLineItems([
       ...lineItems,
       {
         crateSize: firstCat.crateSize,
         grade: firstCat.grade,
-        quantity: 5,
+        quantity: initialQty,
         ratePerCrate: defaultRate,
-        total: 5 * defaultRate,
+        total: initialQty * defaultRate,
       }
     ]);
   };
@@ -117,6 +150,18 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
       }
     }
 
+    // STRICT CUMULATIVE STOCK CAPPING
+    if (field === 'quantity' || field === 'crateSize' || field === 'grade') {
+      const maxAvail = getRemainingAvailableForLine(index, item.crateSize, item.grade);
+      const parsedQty = field === 'quantity' ? (parseInt(value) || 0) : item.quantity;
+      if (parsedQty > maxAvail) {
+        item.quantity = maxAvail;
+        alert(`Stock Limit Reached: Only ${maxAvail} ${item.crateSize} Crates (${item.grade || 'Standard'}) available in stock.`);
+      } else {
+        item.quantity = parsedQty;
+      }
+    }
+
     item.total = (item.quantity || 0) * (item.ratePerCrate || 0);
     updated[index] = item;
     setLineItems(updated);
@@ -128,7 +173,26 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
   const smallStockShortage = Math.max(0, smallRequested - appState.inventory.smallCratesCount);
   const bigStockShortage = Math.max(0, bigRequested - appState.inventory.bigCratesCount);
-  const hasStockShortage = smallStockShortage > 0 || bigStockShortage > 0;
+
+  // Grade-level cumulative shortage validation
+  const gradeShortages: string[] = [];
+  const requestedByGrade: Record<string, number> = {};
+
+  lineItems.forEach(item => {
+    const key = `${item.crateSize} - ${item.grade || 'Grade A (Top Red)'}`;
+    requestedByGrade[key] = (requestedByGrade[key] || 0) + (item.quantity || 0);
+  });
+
+  Object.entries(requestedByGrade).forEach(([key, requested]) => {
+    const [size, ...gradeParts] = key.split(' - ');
+    const gr = gradeParts.join(' - ');
+    const max = getMaxAvailableForLine(size as CrateSize, gr);
+    if (requested > max) {
+      gradeShortages.push(`${key} (Requested: ${requested}, Available: ${max})`);
+    }
+  });
+
+  const hasStockShortage = smallStockShortage > 0 || bigStockShortage > 0 || gradeShortages.length > 0;
 
   const totalAmount = lineItems.reduce((sum, item) => sum + item.total, 0);
   const balanceAdded = Math.max(0, totalAmount - paidAmount);
@@ -168,23 +232,34 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
     const validDispatchItems = lineItems.filter(i => i.quantity > 0);
     if (validDispatchItems.length === 0) {
-      alert('Please enter a valid crate quantity (> 0).');
+      alert('Please assign a crate quantity (> 0) to at least one category.');
+      return;
+    }
+
+    // STRICT STOCK VALIDATION BEFORE SUBMIT
+    for (let idx = 0; idx < lineItems.length; idx++) {
+      const item = lineItems[idx];
+      const maxAvail = getRemainingAvailableForLine(idx, item.crateSize, item.grade);
+      if (item.quantity > maxAvail) {
+        alert(`❌ CANNOT DISPATCH: Quantity for ${item.crateSize} Crate (${item.grade}) exceeds available stock!\nMax Available for this line: ${maxAvail} Crates\nRequested: ${item.quantity} Crates`);
+        return;
+      }
+    }
+
+    if (hasStockShortage) {
+      alert(
+        `❌ CANNOT DISPATCH: Assigned crates exceed in-hand stock!\n` +
+        (gradeShortages.length > 0 ? `- Grade shortages: ${gradeShortages.join(', ')}\n` : '') +
+        (smallStockShortage > 0 ? `- Small Crates shortage: ${smallStockShortage} (Stock: ${appState.inventory.smallCratesCount})\n` : '') +
+        (bigStockShortage > 0 ? `- Big Crates shortage: ${bigStockShortage} (Stock: ${appState.inventory.bigCratesCount})\n` : '') +
+        `Please record an Inward Procurement Purchase Order to add stock first.`
+      );
       return;
     }
 
     if (totalAmount <= 0) {
       alert('Total sale bill amount must be greater than zero.');
       return;
-    }
-
-    if (hasStockShortage) {
-      const confirmOverSell = confirm(
-        `Warning: Requested crates exceed stock in hand!\n` +
-        (smallStockShortage > 0 ? `- Small Crates shortage: ${smallStockShortage}\n` : '') +
-        (bigStockShortage > 0 ? `- Big Crates shortage: ${bigStockShortage}\n` : '') +
-        `Do you still want to proceed with dispatch?`
-      );
-      if (!confirmOverSell) return;
     }
 
     const invoiceNo = `INV-${Date.now().toString().slice(-6)}`;
@@ -325,7 +400,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
             Outward Sales & Customer Dispatch
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Dispatch tomato crates to buyers, set selling rates, collect payments & share digital WhatsApp receipts.
+            Dispatch tomato crates to buyers based strictly on available stock in hand.
           </p>
         </div>
         <button
@@ -415,7 +490,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                   New Outward Sale & Dispatch
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Assign crates & selling rates to generate customer bill.
+                  Assign crates based strictly on in-hand stock availability.
                 </p>
               </div>
               <button
@@ -486,17 +561,17 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
               {/* Stock Warning Banner if Inventory low */}
               {hasStockShortage && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-3">
+                  <ShieldAlert className="w-5 h-5 flex-shrink-0 text-rose-400" />
                   <div>
-                    <strong>INSUFFICIENT STOCK WARNING:</strong> Assigned crates exceed in-hand stock!
-                    {smallStockShortage > 0 && <span className="block mt-0.5">• Need {smallStockShortage} more Small Crates</span>}
-                    {bigStockShortage > 0 && <span className="block mt-0.5">• Need {bigStockShortage} more Big Crates</span>}
+                    <strong>STRICT STOCK EXCEEDED:</strong> Requested crates exceed physical stock in hand!
+                    {smallStockShortage > 0 && <span className="block mt-0.5">• Small Crates Shortage: {smallStockShortage} (Stock: {appState.inventory.smallCratesCount})</span>}
+                    {bigStockShortage > 0 && <span className="block mt-0.5">• Big Crates Shortage: {bigStockShortage} (Stock: {appState.inventory.bigCratesCount})</span>}
                   </div>
                 </div>
               )}
 
-              {/* SECTION 2: Clean Dispatch Line Items Builder */}
+              {/* SECTION 2: Clean Dispatch Line Items Builder with Strict Stock Limits */}
               <div className="space-y-3 bg-slate-800/40 p-4 rounded-xl border border-slate-700/80">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                   <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
@@ -513,86 +588,98 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                 </div>
 
                 <div className="space-y-2.5">
-                  {lineItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className="grid grid-cols-12 gap-2.5 items-center bg-slate-900/80 p-3 rounded-xl border border-slate-700/70 shadow-sm hover:border-slate-600 transition-all"
-                    >
-                      {/* Crate Size & Grade Selector */}
-                      <div className="col-span-12 sm:col-span-5">
-                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Crate Category / Grade</label>
-                        <select
-                          value={`${item.crateSize}|||${item.grade || 'Grade A (Top Red)'}`}
-                          onChange={(e) => {
-                            const [size, gr] = e.target.value.split('|||');
-                            updateLineItem(index, 'crateSize', size as CrateSize);
-                            updateLineItem(index, 'grade', gr);
-                          }}
-                          className="glass-input w-full text-xs font-semibold py-2 text-slate-100"
-                        >
-                          {availableCategories.map((cat, catIdx) => (
-                            <option
-                              key={catIdx}
-                              value={`${cat.crateSize}|||${cat.grade}`}
-                              className="bg-slate-900 text-slate-100 font-normal"
-                            >
-                              {cat.crateSize} Crate — {cat.grade} ({cat.count} in stock)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                  {lineItems.map((item, index) => {
+                    const maxStockAvail = getRemainingAvailableForLine(index, item.crateSize, item.grade);
 
-                      {/* Quantity */}
-                      <div className="col-span-4 sm:col-span-2">
-                        <label className="text-[10px] font-bold text-emerald-400 block mb-1">Crate Qty *</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity || ''}
-                          onChange={(e) => updateLineItem(index, 'quantity', parseInt(e.target.value) || 0)}
-                          className="glass-input w-full text-xs py-2 text-emerald-400 font-bold border-emerald-500/50"
-                          placeholder="0"
-                          required
-                        />
-                      </div>
-
-                      {/* Selling Rate */}
-                      <div className="col-span-4 sm:col-span-2">
-                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Selling Rate (₹)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={item.ratePerCrate || ''}
-                          onChange={(e) => updateLineItem(index, 'ratePerCrate', parseFloat(e.target.value) || 0)}
-                          className="glass-input w-full text-xs py-2 font-semibold"
-                          placeholder="340"
-                          required
-                        />
-                      </div>
-
-                      {/* Line Total */}
-                      <div className="col-span-3 sm:col-span-2 text-right">
-                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Line Total</label>
-                        <span className="font-bold text-xs text-slate-100 block py-1.5 font-mono">
-                          ₹{item.total.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-
-                      {/* Remove Button */}
-                      {lineItems.length > 1 && (
-                        <div className="col-span-1 sm:col-span-1 text-right">
-                          <button
-                            type="button"
-                            onClick={() => removeLineItem(index)}
-                            className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-all"
-                            title="Remove Line"
+                    return (
+                      <div
+                        key={index}
+                        className="grid grid-cols-12 gap-2.5 items-center bg-slate-900/80 p-3 rounded-xl border border-slate-700/70 shadow-sm hover:border-slate-600 transition-all"
+                      >
+                        {/* Crate Size & Grade Selector */}
+                        <div className="col-span-12 sm:col-span-5">
+                          <label className="text-[10px] font-semibold text-slate-400 block mb-1">Crate Category / Grade</label>
+                          <select
+                            value={`${item.crateSize}|||${item.grade || 'Grade A (Top Red)'}`}
+                            onChange={(e) => {
+                              const [size, gr] = e.target.value.split('|||');
+                              updateLineItem(index, 'crateSize', size as CrateSize);
+                              updateLineItem(index, 'grade', gr);
+                            }}
+                            className="glass-input w-full text-xs font-semibold py-2 text-slate-100"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            {availableCategories.map((cat, catIdx) => (
+                              <option
+                                key={catIdx}
+                                value={`${cat.crateSize}|||${cat.grade}`}
+                                className="bg-slate-900 text-slate-100 font-normal"
+                              >
+                                {cat.crateSize} Crate — {cat.grade} ({cat.count} in stock)
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* Quantity with Strict Max Capping */}
+                        <div className="col-span-4 sm:col-span-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-[10px] font-bold text-emerald-400 block">Crate Qty *</label>
+                            <span className="text-[9px] font-semibold text-slate-400">Max: {maxStockAvail}</span>
+                          </div>
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxStockAvail}
+                            value={item.quantity || ''}
+                            onChange={(e) => updateLineItem(index, 'quantity', e.target.value)}
+                            className={`glass-input w-full text-xs py-2 font-bold ${
+                              item.quantity > maxStockAvail
+                                ? 'text-rose-400 border-rose-500 bg-rose-950/20'
+                                : 'text-emerald-400 border-emerald-500/50'
+                            }`}
+                            placeholder="0"
+                            required
+                          />
+                        </div>
+
+                        {/* Selling Rate */}
+                        <div className="col-span-4 sm:col-span-2">
+                          <label className="text-[10px] font-semibold text-slate-400 block mb-1">Selling Rate (₹)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.ratePerCrate || ''}
+                            onChange={(e) => updateLineItem(index, 'ratePerCrate', parseFloat(e.target.value) || 0)}
+                            className="glass-input w-full text-xs py-2 font-semibold"
+                            placeholder="340"
+                            required
+                          />
+                        </div>
+
+                        {/* Line Total */}
+                        <div className="col-span-3 sm:col-span-2 text-right">
+                          <label className="text-[10px] font-semibold text-slate-400 block mb-1">Line Total</label>
+                          <span className="font-bold text-xs text-slate-100 block py-1.5 font-mono">
+                            ₹{item.total.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+
+                        {/* Remove Button */}
+                        {lineItems.length > 1 && (
+                          <div className="col-span-1 sm:col-span-1 text-right">
+                            <button
+                              type="button"
+                              onClick={() => removeLineItem(index)}
+                              className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-all"
+                              title="Remove Line"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -657,7 +744,8 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="glass-button-primary text-xs px-6 py-2.5 shadow-lg shadow-emerald-950/40"
+                  disabled={hasStockShortage}
+                  className="glass-button-primary text-xs px-6 py-2.5 shadow-lg shadow-emerald-950/40 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Save Outward Dispatch & Generate Bill
