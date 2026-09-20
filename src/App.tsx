@@ -9,11 +9,17 @@ import { SupplierManagement } from './components/SupplierManagement';
 import { EmptyCrateTracker } from './components/EmptyCrateTracker';
 import { ProfitAnalytics } from './components/ProfitAnalytics';
 import { RecordSettlementModal } from './components/RecordSettlementModal';
+import { AdminLockScreen } from './components/AdminLockScreen';
 import { EntityType } from './types';
 
 export function App() {
   const [appState, setAppState] = useState<AppState>(() => loadAppState());
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+
+  // Admin Passcode Lock Session State
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('tsk_admin_unlocked') === 'true';
+  });
 
   // Shared Modals State
   const [isOpenProcurementModal, setIsOpenProcurementModal] = useState<boolean>(false);
@@ -27,6 +33,20 @@ export function App() {
     saveAppState(appState);
   }, [appState]);
 
+  const handleUnlock = () => {
+    sessionStorage.setItem('tsk_admin_unlocked', 'true');
+    setIsUnlocked(true);
+  };
+
+  const handleLockApp = () => {
+    sessionStorage.removeItem('tsk_admin_unlocked');
+    setIsUnlocked(false);
+  };
+
+  const handleChangePin = (newPin: string) => {
+    setAppState(prev => ({ ...prev, adminPin: newPin }));
+  };
+
   const handleResetDemo = () => {
     const demoState = resetAppStateToDemo();
     setAppState(demoState);
@@ -38,6 +58,16 @@ export function App() {
     setIsOpenPaymentModal(true);
   };
 
+  if (!isUnlocked) {
+    return (
+      <AdminLockScreen
+        currentPin={appState.adminPin || '1234'}
+        onUnlock={handleUnlock}
+        onChangePin={handleChangePin}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       {/* Top Header & Navigation */}
@@ -47,6 +77,7 @@ export function App() {
         appState={appState}
         setAppState={setAppState}
         onResetDemo={handleResetDemo}
+        onLockApp={handleLockApp}
       />
 
       {/* Main Content Area */}

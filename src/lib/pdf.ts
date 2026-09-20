@@ -1,6 +1,48 @@
 import { jsPDF } from 'jspdf';
 import { Sale, PassbookEntry } from '../types';
 
+export function printInvoiceElement(invoiceNo: string) {
+  const elem = document.getElementById(`invoice-${invoiceNo}`);
+  if (!elem) {
+    window.print();
+    return;
+  }
+
+  const printWindow = window.open('', '_blank', 'width=800,height=900');
+  if (!printWindow) {
+    window.print();
+    return;
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Invoice_${invoiceNo}</title>
+        <script stroke="" src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700;900&display=swap');
+          body { font-family: 'Noto Sans Tamil', sans-serif; background: #ffffff; margin: 0; padding: 16px; }
+          @media print {
+            body { padding: 0; }
+            .print\\:hidden { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        ${elem.outerHTML}
+        <script>
+          setTimeout(() => {
+            window.print();
+            window.close();
+          }, 600);
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 export function generateSaleInvoicePDF(sale: Sale) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -8,42 +50,43 @@ export function generateSaleInvoicePDF(sale: Sale) {
     format: 'a5',
   });
 
-  // Header
+  // Header Box
   doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, 148, 28, 'F');
+  doc.rect(0, 0, 148, 30, 'F');
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('T.S.K VEGETABLES', 10, 12);
+  doc.text('T.S.K TRADERS', 10, 10);
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text('Wholesale Tomato Traders | APMC Mandi Yard', 10, 17);
-  doc.text('Ph: +91 98765 00000 / +91 91234 00000', 10, 21);
+  doc.text('Wholesale Tomato Commission Mandi', 10, 15);
+  doc.text('Ph: 9715813463 / 8190801030', 10, 20);
+  doc.text('APMC Mandi Yard', 10, 24);
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('INVOICE', 115, 12);
+  doc.text('INVOICE', 112, 10);
   doc.setFontSize(8);
-  doc.text(`#${sale.invoiceNo}`, 115, 17);
-  doc.text(`Date: ${sale.date}`, 115, 21);
+  doc.text(`#${sale.invoiceNo}`, 112, 15);
+  doc.text(`Date: ${sale.date}`, 112, 20);
 
   // Customer Details Box
   doc.setTextColor(15, 23, 42);
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(10, 32, 128, 20, 2, 2, 'F');
+  doc.roundedRect(10, 34, 128, 20, 2, 2, 'F');
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('Billed To:', 14, 38);
+  doc.text('Billed To:', 14, 40);
   doc.setFont('helvetica', 'normal');
-  doc.text(sale.customerName, 14, 43);
+  doc.text(sale.customerName, 14, 45);
   doc.setFontSize(8);
-  doc.text(`Location: ${sale.notes || 'Vegetable Mandi Outward Dispatch'}`, 14, 48);
+  doc.text(`Location: ${sale.notes || 'Vegetable Mandi Outward Dispatch'}`, 14, 50);
 
   // Items Table
-  let yPos = 58;
+  let yPos = 60;
   doc.setFillColor(22, 163, 74);
   doc.rect(10, yPos, 128, 7, 'F');
   doc.setTextColor(255, 255, 255);
@@ -93,8 +136,8 @@ export function generateSaleInvoicePDF(sale: Sale) {
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(7);
   doc.setFont('helvetica', 'italic');
-  doc.text('Thank you for your business! Please return empty crates promptly.', 10, 135);
-  doc.text('Computer Generated Invoice - Single Admin T.S.K Vegetables', 10, 139);
+  doc.text('Thank you for trading with T.S.K TRADERS! Please return empty crates promptly.', 10, 135);
+  doc.text('Contact: 9715813463 / 8190801030', 10, 139);
 
   doc.save(`${sale.invoiceNo}_${sale.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
 }
@@ -113,14 +156,14 @@ export function generatePassbookPDF(entityName: string, entityType: 'Customer' |
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('T.S.K VEGETABLES', 14, 15);
+  doc.text('T.S.K TRADERS', 14, 15);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`OFFICIAL ${entityType.toUpperCase()} LEDGER / PASSBOOK STATEMENT`, 14, 22);
 
   doc.setFontSize(9);
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 145, 22);
+  doc.text(`Ph: 9715813463 / 8190801030 | Generated: ${new Date().toLocaleDateString('en-IN')}`, 120, 22);
 
   // Entity Info Box
   doc.setTextColor(15, 23, 42);
@@ -193,20 +236,25 @@ export function generatePassbookPDF(entityName: string, entityType: 'Customer' |
 }
 
 export function generateWhatsAppBillLink(sale: Sale): string {
-  const message = `*T.S.K VEGETABLES - INVOICE RECEIPT*
-Bill No: ${sale.invoiceNo}
+  const message = `*T.S.K TRADERS - தக்காளி காய்கனி கமிஷன் மண்டி*
+Ph: 9715813463 / 8190801030
+
+*ஸ்ரீ வாழகுருநாதன் துணை | ஸ்ரீ அங்காள ஈஸ்வரி துணை*
+
+*INVOICE RECEIPT:* #${sale.invoiceNo}
 Date: ${sale.date}
 Customer: ${sale.customerName}
 
-*Items:*
+*Dispatched Items:*
 ${sale.lineItems.map(item => `• ${item.crateSize} Crate ${item.grade ? `[${item.grade}]` : ''}: ${item.quantity} qty @ Rs ${item.ratePerCrate} = Rs ${item.total}`).join('\n')}
 
-*Total Amount:* Rs ${sale.totalAmount}
+*Grand Total Amount:* Rs ${sale.totalAmount}
 *Paid Amount:* Rs ${sale.paidAmount} (${sale.paymentMethod})
-*Balance Due:* Rs ${sale.balanceAdded}
+*Balance Due Added:* Rs ${sale.balanceAdded}
 
-Thank you for trading with T.S.K Vegetables!
+Thank you for trading with T.S.K TRADERS!
 APMC Mandi Yard`;
 
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
+

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box, ShieldAlert } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box, ShieldAlert, Printer } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES } from '../types';
-import { generateSaleInvoicePDF, generateWhatsAppBillLink } from '../lib/pdf';
+import { generateSaleInvoicePDF, generateWhatsAppBillLink, printInvoiceElement } from '../lib/pdf';
+import { PrintableInvoice } from './PrintableInvoice';
 
 interface SalesModuleProps {
   appState: AppState;
@@ -758,55 +759,62 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
       {/* Sale Digital Bill Generated Preview Modal */}
       {previewSale && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-6 space-y-5 bg-slate-900 border-slate-700 text-center">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-100">Invoice {previewSale.invoiceNo} Generated!</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Dispatched to <strong className="text-slate-200">{previewSale.customerName}</strong>
-              </p>
-            </div>
-
-            <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 text-left text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Total Bill:</span>
-                <strong className="text-slate-100">₹{previewSale.totalAmount}</strong>
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 text-center my-8 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Invoice {previewSale.invoiceNo} Generated!</h3>
+                  <p className="text-xs text-slate-400">
+                    Traditional Mandi Bill Header for <strong className="text-slate-200">{previewSale.customerName}</strong>
+                  </p>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Paid Now:</span>
-                <strong className="text-emerald-400">₹{previewSale.paidAmount}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Balance Added to Dues:</span>
-                <strong className="text-rose-400">₹{previewSale.balanceAdded}</strong>
-              </div>
+              <button
+                onClick={() => setPreviewSale(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="flex flex-col gap-2">
+            {/* Printable Invoice Container */}
+            <div className="overflow-y-auto flex-1 p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <PrintableInvoice
+                sale={previewSale}
+                customer={appState.customers.find(c => c.id === previewSale.customerId)}
+              />
+            </div>
+
+            {/* Action Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3 border-t border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => printInvoiceElement(previewSale.invoiceNo)}
+                className="w-full glass-button-primary text-xs py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 flex items-center justify-center gap-2 font-bold"
+              >
+                <Printer className="w-4 h-4" />
+                Print Bill (Thermal/A4)
+              </button>
+
               <a
                 href={generateWhatsAppBillLink(previewSale)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full glass-button-primary text-xs py-3 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2"
+                className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
               >
                 <Share2 className="w-4 h-4" />
-                Share Digital Bill on WhatsApp
+                Share Bill on WhatsApp
               </a>
+
               <button
                 onClick={() => generateSaleInvoicePDF(previewSale)}
-                className="w-full glass-button-secondary text-xs py-2.5 flex items-center justify-center gap-2"
+                className="w-full glass-button-secondary text-xs py-2.5 flex items-center justify-center gap-2 font-semibold"
               >
                 <Download className="w-4 h-4" />
-                Download PDF Invoice
-              </button>
-              <button
-                onClick={() => setPreviewSale(null)}
-                className="text-xs text-slate-400 hover:text-slate-200 pt-2"
-              >
-                Done / Close
+                Download PDF
               </button>
             </div>
           </div>

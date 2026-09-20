@@ -69,6 +69,28 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
   const totalSmallOutWithCustomers = customerCrateBalances.reduce((sum, c) => sum + Math.max(0, c.smallPending), 0);
   const totalBigOutWithCustomers = customerCrateBalances.reduce((sum, c) => sum + Math.max(0, c.bigPending), 0);
 
+  // Helper to get exact pending returnable crate balance for selected entity & size
+  const getPendingReturnableCrates = (eType: EntityType, eId: string, size: CrateSize): number => {
+    if (eType === 'Customer') {
+      const logs = appState.emptyCrateLogs.filter(
+        l => l.entityType === 'Customer' && l.entityId === eId && l.crateSize === size
+      );
+      const given = logs.filter(l => l.action === 'Given_To_Customer').reduce((sum, l) => sum + l.quantity, 0);
+      const returned = logs.filter(l => l.action === 'Returned_By_Customer').reduce((sum, l) => sum + l.quantity, 0);
+      return Math.max(0, given - returned);
+    } else {
+      const logs = appState.emptyCrateLogs.filter(
+        l => l.entityType === 'Supplier' && l.entityId === eId && l.crateSize === size
+      );
+      const received = logs.filter(l => l.action === 'Received_From_Supplier').reduce((sum, l) => sum + l.quantity, 0);
+      const returned = logs.filter(l => l.action === 'Returned_To_Supplier').reduce((sum, l) => sum + l.quantity, 0);
+      return Math.max(0, received - returned);
+    }
+  };
+
+  const isReturnAction = action === 'Returned_By_Customer' || action === 'Returned_To_Supplier';
+  const pendingDue = isReturnAction ? getPendingReturnableCrates(entityType, selectedEntityId, crateSize) : null;
+
   const handleLogCrateMovement = (e: React.FormEvent) => {
     e.preventDefault();
     if (quantity <= 0) {
@@ -79,6 +101,13 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
     const entityName = entityType === 'Customer'
       ? appState.customers.find(c => c.id === selectedEntityId)?.name || 'Customer'
       : appState.suppliers.find(s => s.id === selectedEntityId)?.name || 'Supplier';
+
+    // STRICT RETURN CAPPING VALIDATION
+    if (isReturnAction && pendingDue !== null && quantity > pendingDue) {
+      alert(`❌ CANNOT RETURN: ${entityName} only has ${pendingDue} ${crateSize} Crates pending return!\nRequested return: ${quantity}\nOnly need to return: ${pendingDue}`);
+      setQuantity(pendingDue);
+      return;
+    }
 
     const newLog: EmptyCrateLog = {
       id: `ec-${Date.now()}`,
@@ -103,7 +132,7 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
     setShowLogModal(false);
     setQuantity(10);
     setNotes('');
-    alert(`Crate movement recorded!`);
+    alert(`Crate movement recorded for ${entityName}!`);
   };
 
   return (
@@ -121,7 +150,16 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
         </div>
 
         <button
-          onClick={() => setShowLogModal(true)}
+          onClick={() => {
+            const defaultCust = appState.customers[0];
+            const due = defaultCust ? getPendingReturnableCrates('Customer', defaultCust.id, 'Small') : 0;
+            setEntityType('Customer');
+            setSelectedEntityId(defaultCust?.id || '');
+            setCrateSize('Small');
+            setAction('Returned_By_Customer');
+            setQuantity(due > 0 ? due : 1);
+            setShowLogModal(true);
+          }}
           className="glass-button-primary text-xs px-4 py-2 bg-gradient-to-r from-amber-600 to-emerald-600"
         >
           <ArrowRightLeft className="w-4 h-4" />
@@ -194,9 +232,13 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
                     <td className="p-2.5 text-right">
                       <button
                         onClick={() => {
+                          const size = cb.smallPending > 0 ? 'Small' : 'Big';
+                          const due = cb.smallPending > 0 ? cb.smallPending : cb.bigPending;
                           setEntityType('Customer');
                           setSelectedEntityId(cb.id);
+                          setCrateSize(size);
                           setAction('Returned_By_Customer');
+                          setQuantity(Math.max(1, due));
                           setShowLogModal(true);
                         }}
                         className="text-[11px] text-emerald-400 hover:underline font-semibold"
@@ -247,9 +289,13 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
                     <td className="p-2.5 text-right">
                       <button
                         onClick={() => {
+                          const size = sb.smallPending > 0 ? 'Small' : 'Big';
+                          const due = sb.smallPending > 0 ? sb.smallPending : sb.bigPending;
                           setEntityType('Supplier');
                           setSelectedEntityId(sb.id);
+                          setCrateSize(size);
                           setAction('Returned_To_Supplier');
+                          setQuantity(Math.max(1, due));
                           setShowLogModal(true);
                         }}
                         className="text-[11px] text-emerald-400 hover:underline font-semibold"
@@ -402,15 +448,43 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
               </div>
 
               <div>
-                <label className="text-slate-300 font-medium block mb-1">Quantity of Crates *</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-slate-300 font-medium block">Quantity of Crates *</label>
+                  {isReturnAction && pendingDue !== null && (
+                    <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Pending Due: {pendingDue} Crates (Max Returnable)
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
                   min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                  className="glass-input w-full text-emerald-400 font-bold"
+                  max={isReturnAction && pendingDue !== null ? pendingDue : undefined}
+                  value={quantity || ''}
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value) || 0;
+                    if (isReturnAction && pendingDue !== null && parsed > pendingDue) {
+                      setQuantity(pendingDue);
+                      const entityName = entityType === 'Customer'
+                        ? appState.customers.find(c => c.id === selectedEntityId)?.name || 'Customer'
+                        : appState.suppliers.find(s => s.id === selectedEntityId)?.name || 'Supplier';
+                      alert(`Only ${pendingDue} ${crateSize} Crates need to be returned by ${entityName}.`);
+                    } else {
+                      setQuantity(parsed);
+                    }
+                  }}
+                  className={`glass-input w-full font-bold ${
+                    isReturnAction && pendingDue !== null && quantity > pendingDue
+                      ? 'text-rose-400 border-rose-500'
+                      : 'text-emerald-400'
+                  }`}
                   required
                 />
+                {isReturnAction && pendingDue !== null && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    * Capped to actual pending crate balance ({pendingDue} crates due).
+                  </p>
+                )}
               </div>
 
               <div>

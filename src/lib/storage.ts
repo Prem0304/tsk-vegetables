@@ -10,6 +10,7 @@ export interface AppState {
   passbookEntries: PassbookEntry[];
   emptyCrateLogs: EmptyCrateLog[];
   wastageLogs: WastageLog[];
+  adminPin?: string;
 }
 
 const STORAGE_KEY = 'tsk_vegetables_app_state_v2';
@@ -27,11 +28,16 @@ export function loadAppState(): AppState {
         passbookEntries: [],
         emptyCrateLogs: [],
         wastageLogs: [],
+        adminPin: '1234',
       };
       saveAppState(defaultState);
       return defaultState;
     }
-    return JSON.parse(raw) as AppState;
+    const parsed = JSON.parse(raw) as AppState;
+    if (!parsed.adminPin) {
+      parsed.adminPin = '1234';
+    }
+    return parsed;
   } catch (error) {
     console.error('Failed to load state from LocalStorage:', error);
     return {
@@ -43,6 +49,7 @@ export function loadAppState(): AppState {
       passbookEntries: [],
       emptyCrateLogs: [],
       wastageLogs: [],
+      adminPin: '1234',
     };
   }
 }

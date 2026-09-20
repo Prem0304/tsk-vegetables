@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, Edit3, Truck, CheckCircle2, UserPlus, X } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Purchase, PurchaseLineItem, CrateSize, Supplier, PassbookEntry, EmptyCrateLog, STANDARD_GRADES, GradeStockItem } from '../types';
+import { VerifyPasswordModal } from './VerifyPasswordModal';
 
 interface ProcurementModuleProps {
   appState: AppState;
@@ -22,6 +23,19 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState<string>('');
   const [paidAmount, setPaidAmount] = useState<number>(0);
+
+  // Password Verification Modal State
+  const [showVerifyModal, setShowVerifyModal] = useState<boolean>(false);
+  const [pendingAuthAction, setPendingAuthAction] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const requestPasswordAuth = (title: string, description: string, onConfirm: () => void) => {
+    setPendingAuthAction({ title, description, onConfirm });
+    setShowVerifyModal(true);
+  };
 
   // Dynamic Line Items with Grade / Category
   const [lineItems, setLineItems] = useState<PurchaseLineItem[]>([
@@ -45,13 +59,19 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   };
 
   const openEditPurchaseModal = (purchase: Purchase) => {
-    setEditingPurchaseId(purchase.id);
-    setSelectedSupplierId(purchase.supplierId);
-    setDate(purchase.date);
-    setNotes(purchase.notes || '');
-    setPaidAmount(purchase.paidAmount);
-    setLineItems(purchase.lineItems.map(item => ({ ...item })));
-    setIsOpenModal(true);
+    requestPasswordAuth(
+      `Edit Purchase Order ${purchase.purchaseNo}`,
+      `Editing this record will modify inventory stock and supplier ${purchase.supplierName}'s balance.`,
+      () => {
+        setEditingPurchaseId(purchase.id);
+        setSelectedSupplierId(purchase.supplierId);
+        setDate(purchase.date);
+        setNotes(purchase.notes || '');
+        setPaidAmount(purchase.paidAmount);
+        setLineItems(purchase.lineItems.map(item => ({ ...item })));
+        setIsOpenModal(true);
+      }
+    );
   };
 
   const addLineItem = () => {
@@ -103,60 +123,63 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   };
 
   const handleDeletePurchase = (purchase: Purchase) => {
-    const confirmDelete = confirm(`Are you sure you want to delete Purchase Order ${purchase.purchaseNo}?\nThis will revert stock and supplier debt balance.`);
-    if (!confirmDelete) return;
+    requestPasswordAuth(
+      `Delete Purchase Order ${purchase.purchaseNo}`,
+      `Deleting this order will permanently revert in-hand inventory stock and recalculate supplier ${purchase.supplierName}'s balance.`,
+      () => {
+        // Calculate crates to revert
+        let smallToRevert = 0;
+        let bigToRevert = 0;
+        purchase.lineItems.forEach(item => {
+          if (item.crateSize === 'Small') smallToRevert += item.quantity;
+          else bigToRevert += item.quantity;
+        });
 
-    // Calculate crates to revert
-    let smallToRevert = 0;
-    let bigToRevert = 0;
-    purchase.lineItems.forEach(item => {
-      if (item.crateSize === 'Small') smallToRevert += item.quantity;
-      else bigToRevert += item.quantity;
-    });
+        // Revert supplier balance
+        const updatedSuppliers = appState.suppliers.map(s => {
+          if (s.id === purchase.supplierId) {
+            return { ...s, pendingBalance: Math.max(0, s.pendingBalance - purchase.balanceAdded) };
+          }
+          return s;
+        });
 
-    // Revert supplier balance
-    const updatedSuppliers = appState.suppliers.map(s => {
-      if (s.id === purchase.supplierId) {
-        return { ...s, pendingBalance: Math.max(0, s.pendingBalance - purchase.balanceAdded) };
+        // Revert inventory
+        const updatedSmallCount = Math.max(0, appState.inventory.smallCratesCount - smallToRevert);
+        const updatedBigCount = Math.max(0, appState.inventory.bigCratesCount - bigToRevert);
+
+        // Revert gradeStocks
+        const updatedGradeStocks = [...(appState.inventory.gradeStocks || [])];
+        purchase.lineItems.forEach(item => {
+          const gGrade = item.grade || 'Grade A (Top Red)';
+          const idx = updatedGradeStocks.findIndex(g => g.crateSize === item.crateSize && g.grade === gGrade);
+          if (idx >= 0) {
+            updatedGradeStocks[idx] = {
+              ...updatedGradeStocks[idx],
+              count: Math.max(0, updatedGradeStocks[idx].count - item.quantity),
+            };
+          }
+        });
+
+        // Revert passbook entries and purchases
+        const updatedPurchases = appState.purchases.filter(p => p.id !== purchase.id);
+        const updatedPassbook = appState.passbookEntries.filter(p => p.referenceId !== purchase.purchaseNo);
+
+        setAppState(prev => ({
+          ...prev,
+          purchases: updatedPurchases,
+          suppliers: updatedSuppliers,
+          inventory: {
+            ...prev.inventory,
+            smallCratesCount: updatedSmallCount,
+            bigCratesCount: updatedBigCount,
+            gradeStocks: updatedGradeStocks,
+          },
+          passbookEntries: updatedPassbook,
+        }));
+
+        alert(`Purchase order ${purchase.purchaseNo} deleted and balances reverted!`);
       }
-      return s;
-    });
-
-    // Revert inventory
-    const updatedSmallCount = Math.max(0, appState.inventory.smallCratesCount - smallToRevert);
-    const updatedBigCount = Math.max(0, appState.inventory.bigCratesCount - bigToRevert);
-
-    // Revert gradeStocks
-    const updatedGradeStocks = [...(appState.inventory.gradeStocks || [])];
-    purchase.lineItems.forEach(item => {
-      const gGrade = item.grade || 'Grade A (Top Red)';
-      const idx = updatedGradeStocks.findIndex(g => g.crateSize === item.crateSize && g.grade === gGrade);
-      if (idx >= 0) {
-        updatedGradeStocks[idx] = {
-          ...updatedGradeStocks[idx],
-          count: Math.max(0, updatedGradeStocks[idx].count - item.quantity),
-        };
-      }
-    });
-
-    // Revert passbook entries and purchases
-    const updatedPurchases = appState.purchases.filter(p => p.id !== purchase.id);
-    const updatedPassbook = appState.passbookEntries.filter(p => p.referenceId !== purchase.purchaseNo);
-
-    setAppState(prev => ({
-      ...prev,
-      purchases: updatedPurchases,
-      suppliers: updatedSuppliers,
-      inventory: {
-        ...prev.inventory,
-        smallCratesCount: updatedSmallCount,
-        bigCratesCount: updatedBigCount,
-        gradeStocks: updatedGradeStocks,
-      },
-      passbookEntries: updatedPassbook,
-    }));
-
-    alert(`Purchase order ${purchase.purchaseNo} deleted and balances reverted!`);
+    );
   };
 
   const handleSubmitPurchase = (e: React.FormEvent) => {
@@ -843,6 +866,18 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Password Verification Modal */}
+      {pendingAuthAction && (
+        <VerifyPasswordModal
+          isOpen={showVerifyModal}
+          onClose={() => setShowVerifyModal(false)}
+          onConfirm={pendingAuthAction.onConfirm}
+          currentPin={appState.adminPin || '1234'}
+          actionTitle={pendingAuthAction.title}
+          actionDescription={pendingAuthAction.description}
+        />
       )}
     </div>
   );

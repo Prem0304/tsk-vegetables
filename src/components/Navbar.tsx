@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
-import { Store, RotateCcw, Download, Upload, Box, ShieldAlert } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Store, RotateCcw, Download, Upload, Box, ShieldAlert, Lock } from 'lucide-react';
 import { AppState, exportAppStateToJson, importAppStateFromJson } from '../lib/storage';
+import { VerifyPasswordModal } from './VerifyPasswordModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -8,6 +9,7 @@ interface NavbarProps {
   appState: AppState;
   setAppState: React.Dispatch<React.SetStateAction<AppState>>;
   onResetDemo: () => void;
+  onLockApp: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -16,8 +18,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   appState,
   setAppState,
   onResetDemo,
+  onLockApp,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Password verification modal state
+  const [showVerifyModal, setShowVerifyModal] = useState<boolean>(false);
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const requestPasswordAuth = (title: string, description: string, onConfirm: () => void) => {
+    setPendingAction({ title, description, onConfirm });
+    setShowVerifyModal(true);
+  };
 
   const handleExportBackup = () => {
     const jsonStr = exportAppStateToJson(appState);
@@ -116,7 +132,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="hidden"
             />
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                requestPasswordAuth(
+                  'Restore Backup Data',
+                  'Restoring data will replace all existing sales, purchases, customers, and suppliers with backup file content.',
+                  () => fileInputRef.current?.click()
+                );
+              }}
               title="Restore Data from JSON"
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-xs flex items-center gap-1.5"
             >
@@ -127,9 +149,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Clear All Data */}
             <button
               onClick={() => {
-                if (confirm('Clear all data and start with clean empty database?')) {
-                  onResetDemo();
-                }
+                requestPasswordAuth(
+                  'Clear All Mandi Data',
+                  'This action will permanently wipe all purchases, sales, customers, suppliers, passbooks, and crate records!',
+                  () => onResetDemo()
+                );
               }}
               title="Clear All Data"
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 transition-all text-xs flex items-center gap-1.5"
@@ -137,8 +161,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               <RotateCcw className="w-4 h-4" />
               <span className="hidden md:inline">Clear Data</span>
             </button>
+
+            {/* Lock App */}
+            <button
+              onClick={onLockApp}
+              title="Lock Admin Portal"
+              className="p-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition-all text-xs flex items-center gap-1.5 font-bold"
+            >
+              <Lock className="w-4 h-4" />
+              <span className="hidden md:inline">Lock Portal</span>
+            </button>
           </div>
         </div>
+
+        {/* Password Verification Modal */}
+        {pendingAction && (
+          <VerifyPasswordModal
+            isOpen={showVerifyModal}
+            onClose={() => setShowVerifyModal(false)}
+            onConfirm={pendingAction.onConfirm}
+            currentPin={appState.adminPin || '1234'}
+            actionTitle={pendingAction.title}
+            actionDescription={pendingAction.description}
+          />
+        )}
       </div>
 
       {/* Main Navigation Tabs */}
