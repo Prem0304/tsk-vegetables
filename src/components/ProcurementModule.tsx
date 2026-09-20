@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Box, Truck, DollarSign, Calendar, FileText, CheckCircle2, UserPlus, X } from 'lucide-react';
+import { Plus, Trash2, Box, Truck, CheckCircle2, UserPlus, X } from 'lucide-react';
 import { AppState } from '../lib/storage';
-import { Purchase, PurchaseLineItem, CrateSize, Supplier, PassbookEntry, EmptyCrateLog } from '../types';
+import { Purchase, PurchaseLineItem, CrateSize, Supplier, PassbookEntry, EmptyCrateLog, STANDARD_GRADES, GradeStockItem } from '../types';
 
 interface ProcurementModuleProps {
   appState: AppState;
@@ -21,10 +21,10 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [paidAmount, setPaidAmount] = useState<number>(0);
 
-  // Dynamic Line Items
+  // Dynamic Line Items with Grade / Category
   const [lineItems, setLineItems] = useState<PurchaseLineItem[]>([
-    { crateSize: 'Small', quantity: 42, ratePerCrate: 300, total: 12600 },
-    { crateSize: 'Small', quantity: 9, ratePerCrate: 240, total: 2160 },
+    { crateSize: 'Small', grade: 'Grade A (Top Red)', quantity: 42, ratePerCrate: 300, total: 12600 },
+    { crateSize: 'Small', grade: 'Grade B (Medium)', quantity: 9, ratePerCrate: 240, total: 2160 },
   ]);
 
   // Inline New Supplier State
@@ -36,7 +36,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   const addLineItem = () => {
     setLineItems([
       ...lineItems,
-      { crateSize: 'Small', quantity: 10, ratePerCrate: 250, total: 2500 }
+      { crateSize: 'Small', grade: 'Grade A (Top Red)', quantity: 10, ratePerCrate: 250, total: 2500 }
     ]);
   };
 
@@ -109,19 +109,46 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // Calculate inventory & weighted average cost
+    // Calculate overall inventory & weighted average cost
     let smallAdded = 0;
     let smallAddedCost = 0;
     let bigAdded = 0;
     let bigAddedCost = 0;
 
+    // Grade breakdown stocks
+    const currentGradeStocks = [...(appState.inventory.gradeStocks || [])];
+
     lineItems.forEach(item => {
+      const itemGrade = item.grade || 'Grade A (Top Red)';
       if (item.crateSize === 'Small') {
         smallAdded += item.quantity;
         smallAddedCost += item.total;
       } else {
         bigAdded += item.quantity;
         bigAddedCost += item.total;
+      }
+
+      // Update specific grade stock
+      const existingGradeIdx = currentGradeStocks.findIndex(
+        g => g.crateSize === item.crateSize && g.grade === itemGrade
+      );
+
+      if (existingGradeIdx >= 0) {
+        const existing = currentGradeStocks[existingGradeIdx];
+        const newCount = existing.count + item.quantity;
+        const newAvg = newCount > 0 ? ((existing.count * existing.avgCost) + item.total) / newCount : item.ratePerCrate;
+        currentGradeStocks[existingGradeIdx] = {
+          ...existing,
+          count: newCount,
+          avgCost: Math.round(newAvg * 100) / 100,
+        };
+      } else {
+        currentGradeStocks.push({
+          crateSize: item.crateSize,
+          grade: itemGrade,
+          count: item.quantity,
+          avgCost: item.ratePerCrate,
+        });
       }
     });
 
@@ -140,7 +167,6 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       : currBigCost;
 
     // Supplier Passbook Entries
-    // 1. Credit entry for purchase total (increases debt)
     const newSupplierBalance1 = supplier.pendingBalance + totalAmount;
     const passbook1: PassbookEntry = {
       id: `pb-${Date.now()}-1`,
@@ -160,7 +186,6 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
     let passbookEntries = [passbook1];
     let finalSupplierBalance = newSupplierBalance1;
 
-    // 2. Debit entry if initial partial payment was made
     if (paidAmount > 0) {
       finalSupplierBalance -= paidAmount;
       const passbook2: PassbookEntry = {
@@ -181,7 +206,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       passbookEntries.push(passbook2);
     }
 
-    // Crate Tracker Log: Received empty crates from supplier with tomatoes
+    // Crate Tracker Log
     const crateLogs: EmptyCrateLog[] = [];
     if (smallAdded > 0) {
       crateLogs.push({
@@ -216,7 +241,6 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       });
     }
 
-    // Save state
     setAppState(prev => ({
       ...prev,
       purchases: [newPurchase, ...prev.purchases],
@@ -226,13 +250,14 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
         bigCratesCount: newBigCount,
         smallAvgCost: Math.round(newSmallAvgCost * 100) / 100,
         bigAvgCost: Math.round(newBigAvgCost * 100) / 100,
+        gradeStocks: currentGradeStocks,
       },
       passbookEntries: [...passbookEntries, ...prev.passbookEntries],
       emptyCrateLogs: [...crateLogs, ...prev.emptyCrateLogs],
     }));
 
     setIsOpenModal(false);
-    alert(`Purchase order ${purchaseNo} recorded! Stock updated.`);
+    alert(`Purchase order ${purchaseNo} recorded with grade pricing! Stock updated.`);
   };
 
   return (
@@ -242,10 +267,10 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
         <div>
           <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
             <Truck className="w-5 h-5 text-emerald-400" />
-            Inward Procurement & Lot Entry
+            Inward Procurement & Grade Lots
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Record supplier truck dispatches, multi-grade crate lots, and cost pricing.
+            Record supplier truck dispatches with multi-grade crate categories and purchase pricing.
           </p>
         </div>
         <button
@@ -271,7 +296,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                 <th className="p-3.5">Order No</th>
                 <th className="p-3.5">Date</th>
                 <th className="p-3.5">Supplier</th>
-                <th className="p-3.5">Crate Breakdown</th>
+                <th className="p-3.5">Grade / Price Breakdown</th>
                 <th className="p-3.5">Total Amount</th>
                 <th className="p-3.5">Paid</th>
                 <th className="p-3.5">Added to Dues</th>
@@ -287,7 +312,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                     <div className="flex flex-wrap gap-1">
                       {purchase.lineItems.map((item, idx) => (
                         <span key={idx} className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[11px]">
-                          {item.quantity} {item.crateSize} @ ₹{item.ratePerCrate}
+                          {item.quantity} {item.crateSize} ({item.grade || 'Grade A'}) @ ₹{item.ratePerCrate}
                         </span>
                       ))}
                     </div>
@@ -307,7 +332,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       {/* New Purchase Modal */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8">
+          <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-400" />
@@ -361,36 +386,54 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                 </div>
               </div>
 
-              {/* Multi-Line Items (Grade/Price Variations) */}
+              {/* Multi-Line Items (Grade & Price Category Variations) */}
               <div className="space-y-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    Crate Lot Breakdown (Grades & Rates)
+                    Crate Grade & Price Variations
                   </span>
                   <button
                     type="button"
                     onClick={addLineItem}
                     className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
                   >
-                    <Plus className="w-3.5 h-3.5" /> + Add Rate Line Item
+                    <Plus className="w-3.5 h-3.5" /> + Add Grade / Price Line
                   </button>
                 </div>
 
                 {lineItems.map((item, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2.5 items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60">
-                    <div className="col-span-4 sm:col-span-3">
+                    <div className="col-span-12 sm:col-span-2">
                       <label className="text-[10px] text-slate-400 block mb-0.5">Crate Size</label>
                       <select
                         value={item.crateSize}
                         onChange={(e) => updateLineItem(index, 'crateSize', e.target.value as CrateSize)}
                         className="glass-input w-full text-xs py-1.5"
                       >
-                        <option value="Small" className="bg-slate-900">Small Crate (~18kg)</option>
-                        <option value="Big" className="bg-slate-900">Big Crate (~28kg)</option>
+                        <option value="Small" className="bg-slate-900">Small Crate</option>
+                        <option value="Big" className="bg-slate-900">Big Crate</option>
                       </select>
                     </div>
 
-                    <div className="col-span-3 sm:col-span-3">
+                    <div className="col-span-12 sm:col-span-4">
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Grade / Price Category</label>
+                      <input
+                        type="text"
+                        list={`grade-options-${index}`}
+                        value={item.grade || 'Grade A (Top Red)'}
+                        onChange={(e) => updateLineItem(index, 'grade', e.target.value)}
+                        placeholder="Select or type grade name"
+                        className="glass-input w-full text-xs py-1.5"
+                        required
+                      />
+                      <datalist id={`grade-options-${index}`}>
+                        {STANDARD_GRADES.map((g, i) => (
+                          <option key={i} value={g} />
+                        ))}
+                      </datalist>
+                    </div>
+
+                    <div className="col-span-4 sm:col-span-2">
                       <label className="text-[10px] text-slate-400 block mb-0.5">Quantity</label>
                       <input
                         type="number"
@@ -402,8 +445,8 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                       />
                     </div>
 
-                    <div className="col-span-3 sm:col-span-3">
-                      <label className="text-[10px] text-slate-400 block mb-0.5">Rate / Crate (₹)</label>
+                    <div className="col-span-4 sm:col-span-2">
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Purchase Rate (₹)</label>
                       <input
                         type="number"
                         min="0"
@@ -414,7 +457,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                       />
                     </div>
 
-                    <div className="col-span-2 sm:col-span-2 text-right">
+                    <div className="col-span-3 sm:col-span-1 text-right">
                       <label className="text-[10px] text-slate-400 block mb-0.5">Total</label>
                       <span className="font-bold text-xs text-slate-100 block py-1.5">
                         ₹{item.total.toLocaleString('en-IN')}
@@ -422,7 +465,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                     </div>
 
                     {lineItems.length > 1 && (
-                      <div className="col-span-12 sm:col-span-1 text-right">
+                      <div className="col-span-1 sm:col-span-1 text-right">
                         <button
                           type="button"
                           onClick={() => removeLineItem(index)}
@@ -467,7 +510,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Lot #A4 Kolar truck return, Grade A mix"
+                  placeholder="e.g. Lot #A4 Kolar truck return, Grade A & B mix"
                   className="glass-input w-full text-xs"
                 />
               </div>

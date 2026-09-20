@@ -1,5 +1,14 @@
 export type CrateSize = 'Small' | 'Big';
 
+export const STANDARD_GRADES = [
+  'Grade A (Top Red)',
+  'Grade B (Medium)',
+  'Grade C (Local)',
+  'Grade D (Soft/Ripe)',
+  'Super Premium',
+  'Standard',
+];
+
 export interface Supplier {
   id: string;
   name: string;
@@ -20,15 +29,24 @@ export interface Customer {
   createdAt: string;
 }
 
+export interface GradeStockItem {
+  crateSize: CrateSize;
+  grade: string;
+  count: number;
+  avgCost: number;
+}
+
 export interface InventoryState {
   smallCratesCount: number;
   bigCratesCount: number;
   smallAvgCost: number; // Weighted average cost per Small Crate
   bigAvgCost: number;   // Weighted average cost per Big Crate
+  gradeStocks?: GradeStockItem[]; // Breakdown by Grade & Crate Size
 }
 
 export interface PurchaseLineItem {
   crateSize: CrateSize;
+  grade?: string; // Grade / Category Name e.g. Grade A, Grade B
   quantity: number;
   ratePerCrate: number;
   total: number;
@@ -50,6 +68,7 @@ export interface Purchase {
 
 export interface SaleLineItem {
   crateSize: CrateSize;
+  grade?: string; // Grade / Category Name e.g. Grade A, Grade B
   quantity: number;
   ratePerCrate: number;
   total: number;
@@ -78,7 +97,7 @@ export interface PassbookEntry {
   entityType: EntityType;
   entityId: string;
   entityName: string;
-  type: 'Credit' | 'Debit'; // Supplier: Credit=Purchase(+debt), Debit=Payment(-debt); Customer: Debit=Sale(+dues), Credit=Payment(-dues)
+  type: 'Credit' | 'Debit';
   amount: number;
   runningBalance: number;
   transactionType: 'Purchase' | 'Sale' | 'Payment_Received' | 'Payment_Paid' | 'Adjustment';
@@ -113,7 +132,7 @@ export interface CrateBalance {
   entityId: string;
   entityName: string;
   entityType: EntityType;
-  smallCratesPending: number; // For customer: crates with them. For supplier: crates with us.
+  smallCratesPending: number;
   bigCratesPending: number;
 }
 
@@ -121,6 +140,7 @@ export interface WastageLog {
   id: string;
   date: string;
   crateSize: CrateSize;
+  grade?: string;
   quantity: number;
   estimatedLossValue: number;
   reason: string;

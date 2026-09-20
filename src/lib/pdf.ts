@@ -1,15 +1,15 @@
 import { jsPDF } from 'jspdf';
-import { Sale, PassbookEntry, Purchase } from '../types';
+import { Sale, PassbookEntry } from '../types';
 
 export function generateSaleInvoicePDF(sale: Sale) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: 'a5', // Compact receipt size perfect for mandi printing
+    format: 'a5',
   });
 
   // Header
-  doc.setFillColor(15, 23, 42); // slate-900
+  doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, 148, 28, 'F');
 
   doc.setTextColor(255, 255, 255);
@@ -31,7 +31,7 @@ export function generateSaleInvoicePDF(sale: Sale) {
 
   // Customer Details Box
   doc.setTextColor(15, 23, 42);
-  doc.setFillColor(241, 245, 249); // slate-100
+  doc.setFillColor(241, 245, 249);
   doc.roundedRect(10, 32, 128, 20, 2, 2, 'F');
 
   doc.setFontSize(9);
@@ -44,13 +44,13 @@ export function generateSaleInvoicePDF(sale: Sale) {
 
   // Items Table
   let yPos = 58;
-  doc.setFillColor(22, 163, 74); // emerald-600
+  doc.setFillColor(22, 163, 74);
   doc.rect(10, yPos, 128, 7, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('Crate Size', 14, yPos + 5);
-  doc.text('Qty', 60, yPos + 5);
+  doc.text('Item / Grade Category', 14, yPos + 5);
+  doc.text('Qty', 65, yPos + 5);
   doc.text('Rate / Crate', 85, yPos + 5);
   doc.text('Total (Rs)', 115, yPos + 5);
 
@@ -60,8 +60,9 @@ export function generateSaleInvoicePDF(sale: Sale) {
 
   sale.lineItems.forEach((item) => {
     yPos += 6;
-    doc.text(`${item.crateSize} Crate`, 14, yPos);
-    doc.text(`${item.quantity}`, 60, yPos);
+    const gradeLabel = item.grade ? `${item.crateSize} (${item.grade})` : `${item.crateSize} Crate`;
+    doc.text(gradeLabel.substring(0, 26), 14, yPos);
+    doc.text(`${item.quantity}`, 65, yPos);
     doc.text(`Rs ${item.ratePerCrate}`, 85, yPos);
     doc.text(`Rs ${item.total}`, 115, yPos);
   });
@@ -84,7 +85,7 @@ export function generateSaleInvoicePDF(sale: Sale) {
 
   yPos += 5;
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(220, 38, 38); // red-600
+  doc.setTextColor(220, 38, 38);
   doc.text('Balance Dues Added:', 75, yPos);
   doc.text(`Rs ${sale.balanceAdded}`, 115, yPos);
 
@@ -198,7 +199,7 @@ Date: ${sale.date}
 Customer: ${sale.customerName}
 
 *Items:*
-${sale.lineItems.map(item => `• ${item.crateSize} Crate: ${item.quantity} qty @ Rs ${item.ratePerCrate} = Rs ${item.total}`).join('\n')}
+${sale.lineItems.map(item => `• ${item.crateSize} Crate ${item.grade ? `[${item.grade}]` : ''}: ${item.quantity} qty @ Rs ${item.ratePerCrate} = Rs ${item.total}`).join('\n')}
 
 *Total Amount:* Rs ${sale.totalAmount}
 *Paid Amount:* Rs ${sale.paidAmount} (${sale.paymentMethod})
@@ -207,6 +208,5 @@ ${sale.lineItems.map(item => `• ${item.crateSize} Crate: ${item.quantity} qty 
 Thank you for trading with T.S.K Vegetables!
 APMC Mandi Yard`;
 
-  const phone = sale.customerId ? '' : ''; // Admin can enter/select customer phone
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
