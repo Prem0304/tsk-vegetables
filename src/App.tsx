@@ -8,6 +8,8 @@ import { CustomerManagement } from './components/CustomerManagement';
 import { SupplierManagement } from './components/SupplierManagement';
 import { EmptyCrateTracker } from './components/EmptyCrateTracker';
 import { ProfitAnalytics } from './components/ProfitAnalytics';
+import { RecordSettlementModal } from './components/RecordSettlementModal';
+import { EntityType } from './types';
 
 export function App() {
   const [appState, setAppState] = useState<AppState>(() => loadAppState());
@@ -17,6 +19,8 @@ export function App() {
   const [isOpenProcurementModal, setIsOpenProcurementModal] = useState<boolean>(false);
   const [isOpenSalesModal, setIsOpenSalesModal] = useState<boolean>(false);
   const [isOpenPaymentModal, setIsOpenPaymentModal] = useState<boolean>(false);
+  const [settlementType, setSettlementType] = useState<EntityType>('Customer');
+  const [settlementEntityId, setSettlementEntityId] = useState<string | undefined>(undefined);
 
   // Auto-save state changes to LocalStorage
   useEffect(() => {
@@ -28,13 +32,10 @@ export function App() {
     setAppState(demoState);
   };
 
-  const handleOpenPaymentModal = (type: 'Customer' | 'Supplier') => {
-    if (type === 'Customer') {
-      setActiveTab('customers');
-      setIsOpenPaymentModal(true);
-    } else {
-      setActiveTab('suppliers');
-    }
+  const handleOpenPaymentModal = (type: EntityType, entityId?: string) => {
+    setSettlementType(type);
+    setSettlementEntityId(entityId);
+    setIsOpenPaymentModal(true);
   };
 
   return (
@@ -89,7 +90,7 @@ export function App() {
             appState={appState}
             setAppState={setAppState}
             isOpenPaymentModal={isOpenPaymentModal}
-            setIsOpenPaymentModal={setIsOpenPaymentModal}
+            setIsOpenPaymentModal={(open) => handleOpenPaymentModal('Customer')}
           />
         )}
 
@@ -114,6 +115,16 @@ export function App() {
           />
         )}
       </main>
+
+      {/* Global Record Settlement Modal */}
+      <RecordSettlementModal
+        appState={appState}
+        setAppState={setAppState}
+        isOpen={isOpenPaymentModal}
+        onClose={() => setIsOpenPaymentModal(false)}
+        defaultType={settlementType}
+        defaultEntityId={settlementEntityId}
+      />
 
       {/* Footer */}
       <footer className="bg-slate-900/80 border-t border-slate-800 py-4 text-center text-xs text-slate-500">

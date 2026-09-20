@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Box, Truck, CheckCircle2, UserPlus, X } from 'lucide-react';
+import { Plus, Trash2, Edit3, Truck, CheckCircle2, UserPlus, X } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Purchase, PurchaseLineItem, CrateSize, Supplier, PassbookEntry, EmptyCrateLog, STANDARD_GRADES, GradeStockItem } from '../types';
 
@@ -16,6 +16,8 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   isOpenModal,
   setIsOpenModal,
 }) => {
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
+
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(appState.suppliers[0]?.id || '');
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState<string>('');
@@ -23,8 +25,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
 
   // Dynamic Line Items with Grade / Category
   const [lineItems, setLineItems] = useState<PurchaseLineItem[]>([
-    { crateSize: 'Small', grade: 'Grade A (Top Red)', quantity: 42, ratePerCrate: 300, total: 12600 },
-    { crateSize: 'Small', grade: 'Grade B (Medium)', quantity: 9, ratePerCrate: 240, total: 2160 },
+    { crateSize: 'Small', grade: 'Grade A (Top Red)', quantity: 40, ratePerCrate: 300, total: 12000 },
   ]);
 
   // Inline New Supplier State
@@ -32,6 +33,26 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   const [newSupName, setNewSupName] = useState<string>('');
   const [newSupPhone, setNewSupPhone] = useState<string>('');
   const [newSupAddress, setNewSupAddress] = useState<string>('');
+
+  const openNewPurchaseModal = () => {
+    setEditingPurchaseId(null);
+    setSelectedSupplierId(appState.suppliers[0]?.id || '');
+    setDate(new Date().toISOString().slice(0, 10));
+    setNotes('');
+    setPaidAmount(0);
+    setLineItems([{ crateSize: 'Small', grade: 'Grade A (Top Red)', quantity: 40, ratePerCrate: 300, total: 12000 }]);
+    setIsOpenModal(true);
+  };
+
+  const openEditPurchaseModal = (purchase: Purchase) => {
+    setEditingPurchaseId(purchase.id);
+    setSelectedSupplierId(purchase.supplierId);
+    setDate(purchase.date);
+    setNotes(purchase.notes || '');
+    setPaidAmount(purchase.paidAmount);
+    setLineItems(purchase.lineItems.map(item => ({ ...item })));
+    setIsOpenModal(true);
+  };
 
   const addLineItem = () => {
     setLineItems([
@@ -48,7 +69,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   const updateLineItem = (index: number, field: keyof PurchaseLineItem, value: any) => {
     const updated = [...lineItems];
     const item = { ...updated[index], [field]: value };
-    item.total = item.quantity * item.ratePerCrate;
+    item.total = (item.quantity || 0) * (item.ratePerCrate || 0);
     updated[index] = item;
     setLineItems(updated);
   };
@@ -81,6 +102,63 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
     setNewSupAddress('');
   };
 
+  const handleDeletePurchase = (purchase: Purchase) => {
+    const confirmDelete = confirm(`Are you sure you want to delete Purchase Order ${purchase.purchaseNo}?\nThis will revert stock and supplier debt balance.`);
+    if (!confirmDelete) return;
+
+    // Calculate crates to revert
+    let smallToRevert = 0;
+    let bigToRevert = 0;
+    purchase.lineItems.forEach(item => {
+      if (item.crateSize === 'Small') smallToRevert += item.quantity;
+      else bigToRevert += item.quantity;
+    });
+
+    // Revert supplier balance
+    const updatedSuppliers = appState.suppliers.map(s => {
+      if (s.id === purchase.supplierId) {
+        return { ...s, pendingBalance: Math.max(0, s.pendingBalance - purchase.balanceAdded) };
+      }
+      return s;
+    });
+
+    // Revert inventory
+    const updatedSmallCount = Math.max(0, appState.inventory.smallCratesCount - smallToRevert);
+    const updatedBigCount = Math.max(0, appState.inventory.bigCratesCount - bigToRevert);
+
+    // Revert gradeStocks
+    const updatedGradeStocks = [...(appState.inventory.gradeStocks || [])];
+    purchase.lineItems.forEach(item => {
+      const gGrade = item.grade || 'Grade A (Top Red)';
+      const idx = updatedGradeStocks.findIndex(g => g.crateSize === item.crateSize && g.grade === gGrade);
+      if (idx >= 0) {
+        updatedGradeStocks[idx] = {
+          ...updatedGradeStocks[idx],
+          count: Math.max(0, updatedGradeStocks[idx].count - item.quantity),
+        };
+      }
+    });
+
+    // Revert passbook entries and purchases
+    const updatedPurchases = appState.purchases.filter(p => p.id !== purchase.id);
+    const updatedPassbook = appState.passbookEntries.filter(p => p.referenceId !== purchase.purchaseNo);
+
+    setAppState(prev => ({
+      ...prev,
+      purchases: updatedPurchases,
+      suppliers: updatedSuppliers,
+      inventory: {
+        ...prev.inventory,
+        smallCratesCount: updatedSmallCount,
+        bigCratesCount: updatedBigCount,
+        gradeStocks: updatedGradeStocks,
+      },
+      passbookEntries: updatedPassbook,
+    }));
+
+    alert(`Purchase order ${purchase.purchaseNo} deleted and balances reverted!`);
+  };
+
   const handleSubmitPurchase = (e: React.FormEvent) => {
     e.preventDefault();
     const supplier = appState.suppliers.find(s => s.id === selectedSupplierId);
@@ -94,6 +172,161 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       return;
     }
 
+    if (editingPurchaseId) {
+      // EDIT EXISTING PURCHASE ORDER
+      const oldPurchase = appState.purchases.find(p => p.id === editingPurchaseId);
+      if (!oldPurchase) return;
+
+      // 1. Revert Old Purchase Impact from Supplier Balance
+      let tempSuppliers = appState.suppliers.map(s => {
+        if (s.id === oldPurchase.supplierId) {
+          return { ...s, pendingBalance: s.pendingBalance - oldPurchase.balanceAdded };
+        }
+        return s;
+      });
+
+      // 2. Revert Old Purchase Stock Impact
+      let oldSmallCount = 0;
+      let oldBigCount = 0;
+      oldPurchase.lineItems.forEach(item => {
+        if (item.crateSize === 'Small') oldSmallCount += item.quantity;
+        else oldBigCount += item.quantity;
+      });
+
+      let tempSmallStock = Math.max(0, appState.inventory.smallCratesCount - oldSmallCount);
+      let tempBigStock = Math.max(0, appState.inventory.bigCratesCount - oldBigCount);
+
+      let tempGradeStocks = [...(appState.inventory.gradeStocks || [])];
+      oldPurchase.lineItems.forEach(item => {
+        const itemGrade = item.grade || 'Grade A (Top Red)';
+        const idx = tempGradeStocks.findIndex(g => g.crateSize === item.crateSize && g.grade === itemGrade);
+        if (idx >= 0) {
+          tempGradeStocks[idx] = {
+            ...tempGradeStocks[idx],
+            count: Math.max(0, tempGradeStocks[idx].count - item.quantity),
+          };
+        }
+      });
+
+      // 3. Apply New Purchase Data
+      const updatedPurchase: Purchase = {
+        ...oldPurchase,
+        date,
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        lineItems,
+        totalAmount,
+        paidAmount,
+        balanceAdded,
+        notes,
+      };
+
+      // Apply new stock additions
+      let newSmallAdded = 0;
+      let newSmallCost = 0;
+      let newBigAdded = 0;
+      let newBigCost = 0;
+
+      lineItems.forEach(item => {
+        const itemGrade = item.grade || 'Grade A (Top Red)';
+        if (item.crateSize === 'Small') {
+          newSmallAdded += item.quantity;
+          newSmallCost += item.total;
+        } else {
+          newBigAdded += item.quantity;
+          newBigCost += item.total;
+        }
+
+        const existingIdx = tempGradeStocks.findIndex(g => g.crateSize === item.crateSize && g.grade === itemGrade);
+        if (existingIdx >= 0) {
+          const ex = tempGradeStocks[existingIdx];
+          const newCnt = ex.count + item.quantity;
+          const newAvg = newCnt > 0 ? ((ex.count * ex.avgCost) + item.total) / newCnt : item.ratePerCrate;
+          tempGradeStocks[existingIdx] = {
+            ...ex,
+            count: newCnt,
+            avgCost: Math.round(newAvg * 100) / 100,
+          };
+        } else {
+          tempGradeStocks.push({
+            crateSize: item.crateSize,
+            grade: itemGrade,
+            count: item.quantity,
+            avgCost: item.ratePerCrate,
+          });
+        }
+      });
+
+      const finalSmallStock = tempSmallStock + newSmallAdded;
+      const finalBigStock = tempBigStock + newBigAdded;
+
+      // Apply new balance to supplier
+      const finalSuppliers = tempSuppliers.map(s => {
+        if (s.id === supplier.id) {
+          return { ...s, pendingBalance: s.pendingBalance + balanceAdded };
+        }
+        return s;
+      });
+
+      // Update Passbook Entries
+      const cleanedPassbook = appState.passbookEntries.filter(p => p.referenceId !== oldPurchase.purchaseNo);
+      const updatedSupplierObj = finalSuppliers.find(s => s.id === supplier.id);
+      const currentSupBal = updatedSupplierObj?.pendingBalance || balanceAdded;
+
+      const newPassbook1: PassbookEntry = {
+        id: `pb-${Date.now()}-1`,
+        date,
+        entityType: 'Supplier',
+        entityId: supplier.id,
+        entityName: supplier.name,
+        type: 'Credit',
+        amount: totalAmount,
+        runningBalance: currentSupBal,
+        transactionType: 'Purchase',
+        referenceId: oldPurchase.purchaseNo,
+        notes: notes || `Updated Purchase ${newSmallAdded + newBigAdded} crates`,
+        createdAt: new Date().toISOString(),
+      };
+
+      let newPassbookList = [newPassbook1];
+      if (paidAmount > 0) {
+        newPassbookList.push({
+          id: `pb-${Date.now()}-2`,
+          date,
+          entityType: 'Supplier',
+          entityId: supplier.id,
+          entityName: supplier.name,
+          type: 'Debit',
+          amount: paidAmount,
+          runningBalance: currentSupBal - paidAmount,
+          transactionType: 'Payment_Paid',
+          paymentMode: 'Cash',
+          referenceId: oldPurchase.purchaseNo,
+          notes: 'Purchase initial settlement payment',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setAppState(prev => ({
+        ...prev,
+        purchases: prev.purchases.map(p => p.id === editingPurchaseId ? updatedPurchase : p),
+        suppliers: finalSuppliers,
+        inventory: {
+          ...prev.inventory,
+          smallCratesCount: finalSmallStock,
+          bigCratesCount: finalBigStock,
+          gradeStocks: tempGradeStocks,
+        },
+        passbookEntries: [...newPassbookList, ...cleanedPassbook],
+      }));
+
+      setIsOpenModal(false);
+      setEditingPurchaseId(null);
+      alert(`Purchase Order ${oldPurchase.purchaseNo} successfully updated! Supplier debt & inventory recalculated.`);
+      return;
+    }
+
+    // NEW PURCHASE ORDER CREATION
     const purchaseNo = `PUR-${Date.now().toString().slice(-6)}`;
     const newPurchase: Purchase = {
       id: `pur-${Date.now()}`,
@@ -109,13 +342,11 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // Calculate overall inventory & weighted average cost
     let smallAdded = 0;
     let smallAddedCost = 0;
     let bigAdded = 0;
     let bigAddedCost = 0;
 
-    // Grade breakdown stocks
     const currentGradeStocks = [...(appState.inventory.gradeStocks || [])];
 
     lineItems.forEach(item => {
@@ -128,7 +359,6 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
         bigAddedCost += item.total;
       }
 
-      // Update specific grade stock
       const existingGradeIdx = currentGradeStocks.findIndex(
         g => g.crateSize === item.crateSize && g.grade === itemGrade
       );
@@ -166,7 +396,6 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       ? ((currBigCount * currBigCost) + bigAddedCost) / newBigCount 
       : currBigCost;
 
-    // Supplier Passbook Entries
     const newSupplierBalance1 = supplier.pendingBalance + totalAmount;
     const passbook1: PassbookEntry = {
       id: `pb-${Date.now()}-1`,
@@ -206,7 +435,6 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
       passbookEntries.push(passbook2);
     }
 
-    // Crate Tracker Log
     const crateLogs: EmptyCrateLog[] = [];
     if (smallAdded > 0) {
       crateLogs.push({
@@ -270,11 +498,11 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
             Inward Procurement & Grade Lots
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Record supplier truck dispatches with multi-grade crate categories and purchase pricing.
+            Record supplier truck dispatches, edit purchase orders, and manage grade pricing.
           </p>
         </div>
         <button
-          onClick={() => setIsOpenModal(true)}
+          onClick={openNewPurchaseModal}
           className="glass-button-primary text-sm"
         >
           <Plus className="w-4 h-4" />
@@ -300,6 +528,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                 <th className="p-3.5">Total Amount</th>
                 <th className="p-3.5">Paid</th>
                 <th className="p-3.5">Added to Dues</th>
+                <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-200">
@@ -322,6 +551,22 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                   <td className="p-3.5 font-semibold text-rose-400">
                     {purchase.balanceAdded > 0 ? `₹${purchase.balanceAdded.toLocaleString('en-IN')}` : 'PAID'}
                   </td>
+                  <td className="p-3.5 text-right space-x-1.5">
+                    <button
+                      onClick={() => openEditPurchaseModal(purchase)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-medium inline-flex items-center gap-1 text-[11px]"
+                      title="Edit Purchase Order"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeletePurchase(purchase)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 inline-flex items-center gap-1 text-[11px]"
+                      title="Delete Purchase Order"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -329,17 +574,20 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
         </div>
       </div>
 
-      {/* New Purchase Modal */}
+      {/* New / Edit Purchase Modal */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-400" />
-                Inward Purchase Entry Form
+                {editingPurchaseId ? `Edit Purchase Order (${appState.purchases.find(p => p.id === editingPurchaseId)?.purchaseNo})` : 'Inward Purchase Entry Form'}
               </h3>
               <button
-                onClick={() => setIsOpenModal(false)}
+                onClick={() => {
+                  setIsOpenModal(false);
+                  setEditingPurchaseId(null);
+                }}
                 className="text-slate-400 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -519,7 +767,10 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsOpenModal(false)}
+                  onClick={() => {
+                    setIsOpenModal(false);
+                    setEditingPurchaseId(null);
+                  }}
                   className="glass-button-secondary text-xs px-4 py-2"
                 >
                   Cancel
@@ -529,7 +780,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                   className="glass-button-primary text-xs px-5 py-2.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  Save Purchase & Update Stock
+                  {editingPurchaseId ? 'Update Purchase & Recalculate' : 'Save Purchase & Update Stock'}
                 </button>
               </div>
             </form>
