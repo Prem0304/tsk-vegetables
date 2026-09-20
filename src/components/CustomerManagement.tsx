@@ -14,12 +14,16 @@ import {
   AlertCircle,
   Share2,
   X,
-  FileText
+  FileText,
+  Box,
+  ShoppingCart,
+  Printer
 } from 'lucide-react';
 import { AppState } from '../lib/storage';
-import { Customer, PassbookEntry } from '../types';
+import { Customer, PassbookEntry, Sale } from '../types';
 import { parseCustomerExcel, downloadSampleCustomerExcel, exportCustomersToExcel, exportPassbookToExcel } from '../lib/excel';
-import { generatePassbookPDF } from '../lib/pdf';
+import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, printInvoiceElement } from '../lib/pdf';
+import { PrintableInvoice } from './PrintableInvoice';
 
 interface CustomerManagementProps {
   appState: AppState;
@@ -226,6 +230,23 @@ Thank you!`;
     return `https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${encodeURIComponent(message)}`;
   };
 
+  const [activeTabType, setActiveTabType] = useState<'supplies' | 'passbook'>('supplies');
+  const [previewSaleModal, setPreviewSaleModal] = useState<Sale | null>(null);
+
+  const selectedCustomerSales = appState.sales.filter(s => s.customerId === selectedCustomerId);
+
+  // Total crates sold to this customer
+  const totalSmallCratesSold = selectedCustomerSales.reduce((sum, s) => {
+    return sum + s.lineItems.filter(i => i.crateSize === 'Small').reduce((lSum, i) => lSum + i.quantity, 0);
+  }, 0);
+
+  const totalBigCratesSold = selectedCustomerSales.reduce((sum, s) => {
+    return sum + s.lineItems.filter(i => i.crateSize === 'Big').reduce((lSum, i) => lSum + i.quantity, 0);
+  }, 0);
+
+  const totalSalesRevenue = selectedCustomerSales.reduce((sum, s) => sum + s.totalAmount, 0);
+  const totalPaidRevenue = selectedCustomerSales.reduce((sum, s) => sum + s.paidAmount, 0);
+
   return (
     <div className="space-y-6">
       {/* Module Top Bar */}
@@ -233,10 +254,10 @@ Thank you!`;
         <div>
           <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-400" />
-            Customer Management & Passbook Ledgers
+            Customer Management & Sales Ledgers
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Manage retail buyers, track dues balances, upload Excel sheets, and export passbook statements.
+            Track crates supplied, prices, sales history, dues balances, and passbook statements per customer.
           </p>
         </div>
 
@@ -276,7 +297,7 @@ Thank you!`;
         </div>
       </div>
 
-      {/* Two Column Layout: Customer Directory List (Left) & Passbook Detail Timeline (Right) */}
+      {/* Two Column Layout: Customer Directory List (Left) & Passbook/Supplies Detail (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Customer Directory (5 Cols) */}
         <div className="lg:col-span-5 glass-panel p-4 space-y-4">
@@ -361,141 +382,325 @@ Thank you!`;
           </div>
         </div>
 
-        {/* Right Column: Customer Passbook Timeline (7 Cols) */}
+        {/* Right Column: Customer Details (Supplies History / Passbook) (7 Cols) */}
         <div className="lg:col-span-7 glass-panel p-5 space-y-5">
           {selectedCustomer ? (
             <>
-              {/* Passbook Header & Action Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold text-slate-100">{selectedCustomer.name}</h3>
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 font-mono">
-                      Passbook
-                    </span>
+              {/* Customer Header & Navigation Tabs */}
+              <div className="space-y-3 pb-4 border-b border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-slate-100">{selectedCustomer.name}</h3>
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 font-mono">
+                        Customer Ledger
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {selectedCustomer.shopLocation} • {selectedCustomer.phone}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {selectedCustomer.shopLocation} • {selectedCustomer.phone}
-                  </p>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => setIsOpenPaymentModal(true)}
-                    className="glass-button-primary text-xs px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600"
-                  >
-                    <Wallet className="w-4 h-4" />
-                    + Receive Payment
-                  </button>
-
-                  <button
-                    onClick={() => generatePassbookPDF(selectedCustomer.name, 'Customer', customerPassbook, selectedCustomer.pendingBalance)}
-                    className="glass-button-secondary text-xs px-3 py-2"
-                    title="Export PDF Statement"
-                  >
-                    <Download className="w-4 h-4" />
-                    PDF Statement
-                  </button>
-
-                  <button
-                    onClick={() => exportPassbookToExcel(customerPassbook, selectedCustomer.name)}
-                    className="glass-button-secondary text-xs px-3 py-2"
-                    title="Export Excel Statement"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                  </button>
-
-                  {selectedCustomer.pendingBalance > 0 && (
-                    <a
-                      href={generateWhatsAppReminderLink()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="glass-button-secondary text-xs px-3 py-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5"
-                      title="Send WhatsApp Reminder"
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setIsOpenPaymentModal(true)}
+                      className="glass-button-primary text-xs px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
-                      WhatsApp Reminder
-                    </a>
-                  )}
+                      <Wallet className="w-4 h-4" />
+                      + Receive Payment
+                    </button>
+
+                    <button
+                      onClick={() => generatePassbookPDF(selectedCustomer.name, 'Customer', customerPassbook, selectedCustomer.pendingBalance)}
+                      className="glass-button-secondary text-xs px-3 py-2"
+                      title="Export PDF Statement"
+                    >
+                      <Download className="w-4 h-4" />
+                      PDF Passbook
+                    </button>
+
+                    {selectedCustomer.pendingBalance > 0 && (
+                      <a
+                        href={generateWhatsAppReminderLink()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="glass-button-secondary text-xs px-3 py-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5"
+                        title="Send WhatsApp Reminder"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        WhatsApp Reminder
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sub Tab Switcher: Supplied Crates & Prices vs Passbook Ledger */}
+                <div className="flex gap-2 bg-slate-900/90 p-1 rounded-xl border border-slate-700">
+                  <button
+                    onClick={() => setActiveTabType('supplies')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      activeTabType === 'supplies'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Box className="w-4 h-4 text-amber-300" />
+                    📦 Crates & Prices Supplied ({selectedCustomerSales.length} Invoices)
+                  </button>
+                  <button
+                    onClick={() => setActiveTabType('passbook')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      activeTabType === 'passbook'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4 text-emerald-300" />
+                    📖 Full Passbook Timeline ({customerPassbook.length} Entries)
+                  </button>
                 </div>
               </div>
 
-              {/* Running Balance Banner */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[11px] text-slate-400 block">Total Dues Payable</span>
-                  <span className="text-xl font-black text-rose-400">
-                    ₹{selectedCustomer.pendingBalance.toLocaleString('en-IN')}
-                  </span>
-                </div>
+              {/* TAB 1: SUPPLIED CRATES & SALES SUMMARY */}
+              {activeTabType === 'supplies' && (
+                <div className="space-y-4">
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs">
+                      <span className="text-[10px] text-slate-400 block uppercase font-semibold">Small Crates Supplied</span>
+                      <strong className="text-lg font-black text-amber-400 font-mono">{totalSmallCratesSold} Crates</strong>
+                    </div>
 
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[11px] text-slate-400 block">Default Small Crate Rate</span>
-                  <span className="text-sm font-bold text-slate-100">
-                    ₹{selectedCustomer.defaultSellingRateSmall || 340} / crate
-                  </span>
-                </div>
+                    <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs">
+                      <span className="text-[10px] text-slate-400 block uppercase font-semibold">Big Crates Supplied</span>
+                      <strong className="text-lg font-black text-amber-400 font-mono">{totalBigCratesSold} Crates</strong>
+                    </div>
 
-                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
-                  <span className="text-[11px] text-slate-400 block">Default Big Crate Rate</span>
-                  <span className="text-sm font-bold text-slate-100">
-                    ₹{selectedCustomer.defaultSellingRateBig || 580} / crate
-                  </span>
-                </div>
-              </div>
+                    <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs">
+                      <span className="text-[10px] text-slate-400 block uppercase font-semibold">Total Bill Value</span>
+                      <strong className="text-lg font-black text-slate-100 font-mono">₹{totalSalesRevenue.toLocaleString('en-IN')}</strong>
+                    </div>
 
-              {/* Passbook Entry Timeline Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-800/80 text-slate-300 uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Transaction</th>
-                      <th className="p-3">Ref / Note</th>
-                      <th className="p-3">Debit (Dispatched)</th>
-                      <th className="p-3">Credit (Paid)</th>
-                      <th className="p-3">Running Dues</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                    {customerPassbook.map((entry) => (
-                      <tr key={entry.id} className="hover:bg-slate-800/40 transition-all">
-                        <td className="p-3 text-slate-400">{entry.date}</td>
-                        <td className="p-3 font-medium">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            entry.transactionType === 'Sale'
-                              ? 'bg-rose-500/10 text-rose-400'
-                              : 'bg-emerald-500/10 text-emerald-400'
-                          }`}>
-                            {entry.transactionType.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-300 max-w-[150px] truncate">
-                          {entry.referenceId && <span className="font-mono text-emerald-400 mr-1">{entry.referenceId}</span>}
-                          {entry.notes}
-                        </td>
-                        <td className="p-3 font-bold text-rose-400">
-                          {entry.type === 'Debit' ? `₹${entry.amount}` : '-'}
-                        </td>
-                        <td className="p-3 font-bold text-emerald-400">
-                          {entry.type === 'Credit' ? `₹${entry.amount}` : '-'}
-                        </td>
-                        <td className="p-3 font-bold text-slate-100">
-                          ₹{entry.runningBalance.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs">
+                      <span className="text-[10px] text-slate-400 block uppercase font-semibold">Outstanding Dues</span>
+                      <strong className={`text-lg font-black font-mono ${selectedCustomer.pendingBalance > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        ₹{selectedCustomer.pendingBalance.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Customer Supplies / Sales List Table */}
+                  <div className="overflow-x-auto rounded-xl border border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-800/90 text-slate-300 uppercase tracking-wider font-bold">
+                        <tr>
+                          <th className="p-3">Invoice # & Date</th>
+                          <th className="p-3">Items / Crates & Grades</th>
+                          <th className="p-3 text-right">Bill Total</th>
+                          <th className="p-3 text-right">Paid</th>
+                          <th className="p-3 text-right">Dues Added</th>
+                          <th className="p-3 text-right">View Mandi Invoice</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                        {selectedCustomerSales.length > 0 ? (
+                          selectedCustomerSales.map((sale) => (
+                            <tr key={sale.id} className="hover:bg-slate-800/40 transition-all">
+                              <td className="p-3 font-mono">
+                                <strong className="text-emerald-400 block">{sale.invoiceNo}</strong>
+                                <span className="text-slate-400 text-[10px]">{sale.date}</span>
+                              </td>
+                              <td className="p-3">
+                                <div className="space-y-1">
+                                  {sale.lineItems.map((item, idx) => (
+                                    <div key={idx} className="bg-slate-900/80 border border-slate-700/80 px-2 py-1 rounded text-[11px] flex justify-between gap-2">
+                                      <span className="font-semibold text-slate-100">
+                                        {item.crateSize} Crate {item.grade ? `(${item.grade})` : ''}
+                                      </span>
+                                      <span className="font-mono text-emerald-400 font-bold">
+                                        {item.quantity} Qty @ ₹{item.ratePerCrate} = ₹{item.total.toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="p-3 text-right font-bold text-slate-100 font-mono">
+                                ₹{sale.totalAmount.toLocaleString('en-IN')}
+                              </td>
+                              <td className="p-3 text-right font-bold text-emerald-400 font-mono">
+                                ₹{sale.paidAmount.toLocaleString('en-IN')}
+                              </td>
+                              <td className="p-3 text-right font-bold text-rose-400 font-mono">
+                                {sale.balanceAdded > 0 ? `₹${sale.balanceAdded.toLocaleString('en-IN')}` : 'CLEAR'}
+                              </td>
+                              <td className="p-3 text-right">
+                                <button
+                                  onClick={() => setPreviewSaleModal(sale)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold inline-flex items-center gap-1"
+                                >
+                                  <Printer className="w-3.5 h-3.5" /> Mandi Bill
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="p-6 text-center text-slate-400">
+                              No outward sales dispatches recorded yet for {selectedCustomer.name}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: FULL PASSBOOK TIMELINE */}
+              {activeTabType === 'passbook' && (
+                <div className="space-y-4">
+                  {/* Running Balance Banner */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
+                      <span className="text-[11px] text-slate-400 block">Total Dues Payable</span>
+                      <span className="text-xl font-black text-rose-400">
+                        ₹{selectedCustomer.pendingBalance.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
+                      <span className="text-[11px] text-slate-400 block">Default Small Crate Rate</span>
+                      <span className="text-sm font-bold text-slate-100">
+                        ₹{selectedCustomer.defaultSellingRateSmall || 340} / crate
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60">
+                      <span className="text-[11px] text-slate-400 block">Default Big Crate Rate</span>
+                      <span className="text-sm font-bold text-slate-100">
+                        ₹{selectedCustomer.defaultSellingRateBig || 580} / crate
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Passbook Entry Timeline Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-800/80 text-slate-300 uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Transaction</th>
+                          <th className="p-3">Ref / Note</th>
+                          <th className="p-3">Debit (Dispatched)</th>
+                          <th className="p-3">Credit (Paid)</th>
+                          <th className="p-3">Running Dues</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                        {customerPassbook.map((entry) => (
+                          <tr key={entry.id} className="hover:bg-slate-800/40 transition-all">
+                            <td className="p-3 text-slate-400">{entry.date}</td>
+                            <td className="p-3 font-medium">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                entry.transactionType === 'Sale'
+                                  ? 'bg-rose-500/10 text-rose-400'
+                                  : 'bg-emerald-500/10 text-emerald-400'
+                              }`}>
+                                {entry.transactionType.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-300 max-w-[150px] truncate">
+                              {entry.referenceId && <span className="font-mono text-emerald-400 mr-1">{entry.referenceId}</span>}
+                              {entry.notes}
+                            </td>
+                            <td className="p-3 font-bold text-rose-400">
+                              {entry.type === 'Debit' ? `₹${entry.amount}` : '-'}
+                            </td>
+                            <td className="p-3 font-bold text-emerald-400">
+                              {entry.type === 'Credit' ? `₹${entry.amount}` : '-'}
+                            </td>
+                            <td className="p-3 font-bold text-slate-100">
+                              ₹{entry.runningBalance.toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="py-12 text-center text-slate-400 text-xs">
-              Select a customer from the left directory to view passbook ledger history.
+              Select a customer from the left directory to view supplied crates and passbook history.
             </div>
           )}
         </div>
       </div>
+
+      {/* Sale Mandi Invoice Preview Modal */}
+      {previewSaleModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 text-center my-8 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Invoice {previewSaleModal.invoiceNo}</h3>
+                  <p className="text-xs text-slate-400">
+                    Traditional Mandi Bill Header for <strong className="text-slate-200">{previewSaleModal.customerName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewSaleModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Invoice Container */}
+            <div className="overflow-y-auto flex-1 p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <PrintableInvoice
+                sale={previewSaleModal}
+                customer={appState.customers.find(c => c.id === previewSaleModal.customerId)}
+              />
+            </div>
+
+            {/* Action Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3 border-t border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => printInvoiceElement(previewSaleModal.invoiceNo)}
+                className="w-full glass-button-primary text-xs py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 flex items-center justify-center gap-2 font-bold"
+              >
+                <Printer className="w-4 h-4" />
+                Print Bill (Thermal/A4)
+              </button>
+
+              <a
+                href={generateWhatsAppBillLink(previewSaleModal)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
+              >
+                <Share2 className="w-4 h-4" />
+                Share Bill on WhatsApp
+              </a>
+
+              <button
+                onClick={() => generateSaleInvoicePDF(previewSaleModal)}
+                className="w-full glass-button-secondary text-xs py-2.5 flex items-center justify-center gap-2 font-semibold"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Receive Payment Modal */}
       {isOpenPaymentModal && selectedCustomer && (
