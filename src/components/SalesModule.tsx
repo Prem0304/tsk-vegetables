@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box } from 'lucide-react';
 import { AppState } from '../lib/storage';
-import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES, GradeStockItem } from '../types';
+import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES } from '../types';
 import { generateSaleInvoicePDF, generateWhatsAppBillLink } from '../lib/pdf';
 
 interface SalesModuleProps {
@@ -23,7 +23,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
 
-  // Line items for outward dispatch
+  // Clean, focused line items list for outward dispatch
   const [lineItems, setLineItems] = useState<SaleLineItem[]>([]);
 
   // Selected Sale Preview Modal
@@ -35,38 +35,20 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
   const [newCustPhone, setNewCustPhone] = useState<string>('');
   const [newCustShop, setNewCustShop] = useState<string>('');
 
-  // Helper to extract all unique procurement categories from inventory or purchases
-  const getAvailableCategories = (): GradeStockItem[] => {
-    const list: GradeStockItem[] = [];
+  // Helper to build list of in-stock / available categories
+  const getAvailableStockCategories = () => {
+    const list: { crateSize: CrateSize; grade: string; count: number; avgCost: number }[] = [];
 
-    // First check gradeStocks in inventory
     if (appState.inventory.gradeStocks && appState.inventory.gradeStocks.length > 0) {
       appState.inventory.gradeStocks.forEach(g => {
         list.push({ ...g });
       });
     }
 
-    // Also scan all purchases line items to ensure all procured categories are present
-    appState.purchases.forEach(purchase => {
-      purchase.lineItems.forEach(pItem => {
-        const pGrade = pItem.grade || 'Standard';
-        const exists = list.some(g => g.crateSize === pItem.crateSize && g.grade === pGrade);
-        if (!exists) {
-          list.push({
-            crateSize: pItem.crateSize,
-            grade: pGrade,
-            count: pItem.crateSize === 'Small' ? appState.inventory.smallCratesCount : appState.inventory.bigCratesCount,
-            avgCost: pItem.ratePerCrate,
-          });
-        }
-      });
-    });
-
-    // Fallback if no categories yet
+    // Fallback if no specific grade stocks exist
     if (list.length === 0) {
       list.push(
         { crateSize: 'Small', grade: 'Grade A (Top Red)', count: appState.inventory.smallCratesCount, avgCost: appState.inventory.smallAvgCost || 300 },
-        { crateSize: 'Small', grade: 'Grade B (Medium)', count: appState.inventory.smallCratesCount, avgCost: appState.inventory.smallAvgCost || 240 },
         { crateSize: 'Big', grade: 'Grade A (Top Red)', count: appState.inventory.bigCratesCount, avgCost: appState.inventory.bigAvgCost || 500 }
       );
     }
@@ -74,37 +56,45 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
     return list;
   };
 
-  // Populate all categories whenever modal opens
+  const availableCategories = getAvailableStockCategories();
+
+  // Reset lines when modal opens
   useEffect(() => {
     if (isOpenModal) {
-      const categories = getAvailableCategories();
       const customer = appState.customers.find(c => c.id === selectedCustomerId);
+      const firstCat = availableCategories[0] || { crateSize: 'Small', grade: 'Grade A (Top Red)', count: 0, avgCost: 300 };
+      const defaultRate = firstCat.crateSize === 'Small'
+        ? (customer?.defaultSellingRateSmall || 340)
+        : (customer?.defaultSellingRateBig || 580);
 
-      const initialLines: SaleLineItem[] = categories.map(cat => {
-        const defaultRate = cat.crateSize === 'Small'
-          ? (customer?.defaultSellingRateSmall || Math.round(cat.avgCost * 1.25) || 340)
-          : (customer?.defaultSellingRateBig || Math.round(cat.avgCost * 1.25) || 580);
-
-        return {
-          crateSize: cat.crateSize,
-          grade: cat.grade,
-          quantity: 0, // Default to 0, admin enters quantity for categories assigned to customer
+      setLineItems([
+        {
+          crateSize: firstCat.crateSize,
+          grade: firstCat.grade,
+          quantity: 10,
           ratePerCrate: defaultRate,
-          total: 0,
-        };
-      });
-
-      setLineItems(initialLines);
+          total: 10 * defaultRate,
+        }
+      ]);
       setPaidAmount(0);
+      setNotes('');
     }
-  }, [isOpenModal, selectedCustomerId, appState.inventory, appState.purchases]);
+  }, [isOpenModal, selectedCustomerId]);
 
-  const addCustomLineItem = () => {
+  const addLineItem = () => {
+    const firstCat = availableCategories[0] || { crateSize: 'Small', grade: 'Grade A (Top Red)', count: 0, avgCost: 300 };
     const customer = appState.customers.find(c => c.id === selectedCustomerId);
     const defaultRate = customer?.defaultSellingRateSmall || 340;
+
     setLineItems([
       ...lineItems,
-      { crateSize: 'Small', grade: 'Custom Grade', quantity: 0, ratePerCrate: defaultRate, total: 0 }
+      {
+        crateSize: firstCat.crateSize,
+        grade: firstCat.grade,
+        quantity: 5,
+        ratePerCrate: defaultRate,
+        total: 5 * defaultRate,
+      }
     ]);
   };
 
@@ -116,22 +106,31 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
   const updateLineItem = (index: number, field: keyof SaleLineItem, value: any) => {
     const updated = [...lineItems];
     const item = { ...updated[index], [field]: value };
+
+    // Auto update rate if category or crate size changes
+    if (field === 'crateSize' || field === 'grade') {
+      const customer = appState.customers.find(c => c.id === selectedCustomerId);
+      if (item.crateSize === 'Small' && customer?.defaultSellingRateSmall) {
+        item.ratePerCrate = customer.defaultSellingRateSmall;
+      } else if (item.crateSize === 'Big' && customer?.defaultSellingRateBig) {
+        item.ratePerCrate = customer.defaultSellingRateBig;
+      }
+    }
+
     item.total = (item.quantity || 0) * (item.ratePerCrate || 0);
     updated[index] = item;
     setLineItems(updated);
   };
 
-  // Active line items with assigned quantity > 0
-  const activeDispatchItems = lineItems.filter(i => i.quantity > 0);
-
-  const smallRequested = activeDispatchItems.filter(i => i.crateSize === 'Small').reduce((sum, i) => sum + i.quantity, 0);
-  const bigRequested = activeDispatchItems.filter(i => i.crateSize === 'Big').reduce((sum, i) => sum + i.quantity, 0);
+  // Stock shortage calculations
+  const smallRequested = lineItems.filter(i => i.crateSize === 'Small').reduce((sum, i) => sum + i.quantity, 0);
+  const bigRequested = lineItems.filter(i => i.crateSize === 'Big').reduce((sum, i) => sum + i.quantity, 0);
 
   const smallStockShortage = Math.max(0, smallRequested - appState.inventory.smallCratesCount);
   const bigStockShortage = Math.max(0, bigRequested - appState.inventory.bigCratesCount);
   const hasStockShortage = smallStockShortage > 0 || bigStockShortage > 0;
 
-  const totalAmount = activeDispatchItems.reduce((sum, item) => sum + item.total, 0);
+  const totalAmount = lineItems.reduce((sum, item) => sum + item.total, 0);
   const balanceAdded = Math.max(0, totalAmount - paidAmount);
 
   const handleAddNewCustomer = (e: React.FormEvent) => {
@@ -167,13 +166,14 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
       return;
     }
 
-    if (activeDispatchItems.length === 0) {
-      alert('Please assign a crate quantity (> 0) to at least one category to generate dispatch and bill.');
+    const validDispatchItems = lineItems.filter(i => i.quantity > 0);
+    if (validDispatchItems.length === 0) {
+      alert('Please enter a valid crate quantity (> 0).');
       return;
     }
 
     if (totalAmount <= 0) {
-      alert('Total sale amount must be greater than zero.');
+      alert('Total sale bill amount must be greater than zero.');
       return;
     }
 
@@ -194,7 +194,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
       date,
       customerId: customer.id,
       customerName: customer.name,
-      lineItems: activeDispatchItems, // Only save assigned categories with >0 quantity
+      lineItems: validDispatchItems,
       totalAmount,
       paidAmount,
       balanceAdded,
@@ -209,7 +209,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
     // Grade Specific Stock Deduction
     const currentGradeStocks = [...(appState.inventory.gradeStocks || [])];
-    activeDispatchItems.forEach(item => {
+    validDispatchItems.forEach(item => {
       const itemGrade = item.grade || 'Standard';
       const idx = currentGradeStocks.findIndex(g => g.crateSize === item.crateSize && g.grade === itemGrade);
       if (idx >= 0) {
@@ -233,7 +233,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
       runningBalance: newCustomerBalance1,
       transactionType: 'Sale',
       referenceId: invoiceNo,
-      notes: notes || `Dispatched ${smallRequested + bigRequested} crates across ${activeDispatchItems.length} categories`,
+      notes: notes || `Dispatched ${smallRequested + bigRequested} crates`,
       createdAt: new Date().toISOString(),
     };
 
@@ -313,6 +313,8 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
     setPreviewSale(newSale);
   };
 
+  const selectedCustomer = appState.customers.find(c => c.id === selectedCustomerId);
+
   return (
     <div className="space-y-6">
       {/* Module Header */}
@@ -323,7 +325,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
             Outward Sales & Customer Dispatch
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            All procurement categories are listed automatically. Assign crate quantities to dispatch & generate customer bill.
+            Dispatch tomato crates to buyers, set selling rates, collect payments & share digital WhatsApp receipts.
           </p>
         </div>
         <button
@@ -349,7 +351,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                 <th className="p-3.5">Invoice #</th>
                 <th className="p-3.5">Date</th>
                 <th className="p-3.5">Customer</th>
-                <th className="p-3.5">Assigned Categories & Crates</th>
+                <th className="p-3.5">Items Dispatched</th>
                 <th className="p-3.5">Total Amount</th>
                 <th className="p-3.5">Paid</th>
                 <th className="p-3.5">Dues Added</th>
@@ -401,15 +403,21 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
         </div>
       </div>
 
-      {/* New Sale Dispatch Modal */}
+      {/* Ultra Clean & Clear Create Outward Sale Modal */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8">
+          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8 shadow-2xl">
+            {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5 text-emerald-400" />
-                Outward Dispatch & Customer Billing Form
-              </h3>
+              <div>
+                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-emerald-400" />
+                  New Outward Sale & Dispatch
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Assign crates & selling rates to generate customer bill.
+                </p>
+              </div>
               <button
                 onClick={() => setIsOpenModal(false)}
                 className="text-slate-400 hover:text-white p-1 rounded-lg"
@@ -419,43 +427,61 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
             </div>
 
             <form onSubmit={handleSubmitSale} className="space-y-5">
-              {/* Customer Selection & Date */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-slate-300">Select Customer *</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCustomer(true)}
-                      className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-medium"
+              {/* SECTION 1: Customer Selection & Date */}
+              <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-700/80 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-200">Billed Customer *</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustomer(true)}
+                        className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <UserPlus className="w-3 h-3" /> + Add New Customer
+                      </button>
+                    </div>
+                    <select
+                      value={selectedCustomerId}
+                      onChange={(e) => setSelectedCustomerId(e.target.value)}
+                      className="glass-input w-full text-xs font-bold"
+                      required
                     >
-                      <UserPlus className="w-3 h-3" /> + Add New Customer
-                    </button>
+                      {appState.customers.map((c) => (
+                        <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100 font-normal">
+                          {c.name} ({c.shopLocation || 'Mandi'})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="glass-input w-full"
-                    required
-                  >
-                    {appState.customers.map((c) => (
-                      <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100">
-                        {c.name} (Current Dues: ₹{c.pendingBalance})
-                      </option>
-                    ))}
-                  </select>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-200 mb-1 block">Dispatch Date *</label>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="glass-input w-full text-xs font-medium"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-medium text-slate-300 mb-1 block">Dispatch Date *</label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="glass-input w-full"
-                    required
-                  />
-                </div>
+                {/* Customer Balance Status Badge */}
+                {selectedCustomer && (
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-700/50 text-xs">
+                    <span className="text-slate-400">Current Outstanding Customer Dues:</span>
+                    <strong className={`font-bold px-2.5 py-0.5 rounded-full ${
+                      selectedCustomer.pendingBalance > 0
+                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}>
+                      {selectedCustomer.pendingBalance > 0 
+                        ? `₹${selectedCustomer.pendingBalance.toLocaleString('en-IN')}` 
+                        : 'CLEAR (₹0)'}
+                    </strong>
+                  </div>
+                )}
               </div>
 
               {/* Stock Warning Banner if Inventory low */}
@@ -470,133 +496,110 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                 </div>
               )}
 
-              {/* All Procured Categories Dispatch Table */}
-              <div className="space-y-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
-                      Procured Categories & Crate Assignment
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      Enter quantity of crates to assign to {appState.customers.find(c => c.id === selectedCustomerId)?.name || 'customer'} for each category.
-                    </span>
-                  </div>
-
+              {/* SECTION 2: Clean Dispatch Line Items Builder */}
+              <div className="space-y-3 bg-slate-800/40 p-4 rounded-xl border border-slate-700/80">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Box className="w-4 h-4 text-emerald-400" />
+                    Crates & Categories to Dispatch
+                  </span>
                   <button
                     type="button"
-                    onClick={addCustomLineItem}
-                    className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                    onClick={addLineItem}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20"
                   >
-                    <Plus className="w-3.5 h-3.5" /> + Add Custom Category Line
+                    <Plus className="w-3.5 h-3.5" /> + Add Crate Line
                   </button>
                 </div>
 
-                <div className="space-y-2">
-                  {lineItems.map((item, index) => {
-                    const gradeStockInfo = appState.inventory.gradeStocks?.find(
-                      g => g.crateSize === item.crateSize && g.grade === item.grade
-                    );
-                    const stockAvailable = gradeStockInfo ? gradeStockInfo.count : (
-                      item.crateSize === 'Small' ? appState.inventory.smallCratesCount : appState.inventory.bigCratesCount
-                    );
+                <div className="space-y-2.5">
+                  {lineItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className="grid grid-cols-12 gap-2.5 items-center bg-slate-900/80 p-3 rounded-xl border border-slate-700/70 shadow-sm hover:border-slate-600 transition-all"
+                    >
+                      {/* Crate Size & Grade Selector */}
+                      <div className="col-span-12 sm:col-span-5">
+                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Crate Category / Grade</label>
+                        <select
+                          value={`${item.crateSize}|||${item.grade || 'Grade A (Top Red)'}`}
+                          onChange={(e) => {
+                            const [size, gr] = e.target.value.split('|||');
+                            updateLineItem(index, 'crateSize', size as CrateSize);
+                            updateLineItem(index, 'grade', gr);
+                          }}
+                          className="glass-input w-full text-xs font-semibold py-2 text-slate-100"
+                        >
+                          {availableCategories.map((cat, catIdx) => (
+                            <option
+                              key={catIdx}
+                              value={`${cat.crateSize}|||${cat.grade}`}
+                              className="bg-slate-900 text-slate-100 font-normal"
+                            >
+                              {cat.crateSize} Crate — {cat.grade} ({cat.count} in stock)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    return (
-                      <div
-                        key={index}
-                        className={`grid grid-cols-12 gap-2.5 items-center p-3 rounded-xl border transition-all ${
-                          item.quantity > 0 
-                            ? 'bg-emerald-950/30 border-emerald-500/50' 
-                            : 'bg-slate-900/60 border-slate-700/60'
-                        }`}
-                      >
-                        {/* Crate Size */}
-                        <div className="col-span-12 sm:col-span-2">
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Crate Size</label>
-                          <select
-                            value={item.crateSize}
-                            onChange={(e) => updateLineItem(index, 'crateSize', e.target.value as CrateSize)}
-                            className="glass-input w-full text-xs py-1.5"
-                          >
-                            <option value="Small" className="bg-slate-900">Small Crate</option>
-                            <option value="Big" className="bg-slate-900">Big Crate</option>
-                          </select>
-                        </div>
+                      {/* Quantity */}
+                      <div className="col-span-4 sm:col-span-2">
+                        <label className="text-[10px] font-bold text-emerald-400 block mb-1">Crate Qty *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity || ''}
+                          onChange={(e) => updateLineItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                          className="glass-input w-full text-xs py-2 text-emerald-400 font-bold border-emerald-500/50"
+                          placeholder="0"
+                          required
+                        />
+                      </div>
 
-                        {/* Grade Category */}
-                        <div className="col-span-12 sm:col-span-4">
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Procurement Grade / Category</label>
-                          <input
-                            type="text"
-                            list={`sale-all-grades-${index}`}
-                            value={item.grade || 'Standard'}
-                            onChange={(e) => updateLineItem(index, 'grade', e.target.value)}
-                            placeholder="Grade Name"
-                            className="glass-input w-full text-xs py-1.5 font-semibold text-slate-100"
-                          />
-                          <datalist id={`sale-all-grades-${index}`}>
-                            {STANDARD_GRADES.map((g, i) => (
-                              <option key={i} value={g} />
-                            ))}
-                          </datalist>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">
-                            Stock in Hand: <strong className="text-emerald-400">{stockAvailable} Crates</strong>
-                          </span>
-                        </div>
+                      {/* Selling Rate */}
+                      <div className="col-span-4 sm:col-span-2">
+                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Selling Rate (₹)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.ratePerCrate || ''}
+                          onChange={(e) => updateLineItem(index, 'ratePerCrate', parseFloat(e.target.value) || 0)}
+                          className="glass-input w-full text-xs py-2 font-semibold"
+                          placeholder="340"
+                          required
+                        />
+                      </div>
 
-                        {/* Assign Qty */}
-                        <div className="col-span-4 sm:col-span-2">
-                          <label className="text-[10px] font-bold text-emerald-400 block mb-0.5">Assign Qty (Crates)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.quantity}
-                            onChange={(e) => updateLineItem(index, 'quantity', parseInt(e.target.value) || 0)}
-                            className="glass-input w-full text-xs py-1.5 text-emerald-400 font-bold border-emerald-500/50"
-                            placeholder="0"
-                          />
-                        </div>
+                      {/* Line Total */}
+                      <div className="col-span-3 sm:col-span-2 text-right">
+                        <label className="text-[10px] font-semibold text-slate-400 block mb-1">Line Total</label>
+                        <span className="font-bold text-xs text-slate-100 block py-1.5 font-mono">
+                          ₹{item.total.toLocaleString('en-IN')}
+                        </span>
+                      </div>
 
-                        {/* Selling Rate */}
-                        <div className="col-span-4 sm:col-span-2">
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Selling Rate (₹/Crate)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.ratePerCrate}
-                            onChange={(e) => updateLineItem(index, 'ratePerCrate', parseFloat(e.target.value) || 0)}
-                            className="glass-input w-full text-xs py-1.5"
-                          />
-                        </div>
-
-                        {/* Line Total */}
-                        <div className="col-span-3 sm:col-span-1 text-right">
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Line Total</label>
-                          <span className={`font-bold text-xs block py-1.5 ${item.quantity > 0 ? 'text-emerald-400 font-black' : 'text-slate-400'}`}>
-                            ₹{item.total.toLocaleString('en-IN')}
-                          </span>
-                        </div>
-
-                        {/* Delete optional row */}
+                      {/* Remove Button */}
+                      {lineItems.length > 1 && (
                         <div className="col-span-1 sm:col-span-1 text-right">
                           <button
                             type="button"
                             onClick={() => removeLineItem(index)}
-                            className="text-slate-500 hover:text-rose-400 p-1 rounded"
-                            title="Remove Category Row"
+                            className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-all"
+                            title="Remove Line"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Payment Collection & Grand Summary */}
+              {/* SECTION 3: Payment Collection & Bill Summary */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700">
                 <div>
-                  <label className="text-xs font-medium text-slate-300 mb-1 block">Payment Collection Mode</label>
+                  <label className="text-xs font-semibold text-slate-200 mb-1 block">Payment Collection Mode</label>
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
@@ -610,56 +613,54 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-slate-300 mb-1 block">Payment Amount Received (₹)</label>
+                  <label className="text-xs font-semibold text-slate-200 mb-1 block">Payment Paid Now (₹)</label>
                   <input
                     type="number"
                     min="0"
                     max={totalAmount}
-                    value={paidAmount}
+                    value={paidAmount || ''}
                     onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
-                    className="glass-input w-full text-emerald-400 font-bold"
+                    className="glass-input w-full text-emerald-400 text-sm font-bold"
                     placeholder="0"
                   />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Dues Added: <strong className="text-rose-400">₹{balanceAdded.toLocaleString('en-IN')}</strong>
+                  </span>
                 </div>
 
                 <div className="flex flex-col justify-center text-right">
-                  <span className="text-xs text-slate-400">
-                    Total Invoice Bill ({activeDispatchItems.length} Categories Assigned):
-                  </span>
-                  <span className="text-2xl font-black text-slate-100">₹{totalAmount.toLocaleString('en-IN')}</span>
-                  <span className="text-[10px] text-rose-400 font-semibold">
-                    Dues Added: ₹{balanceAdded.toLocaleString('en-IN')}
-                  </span>
+                  <span className="text-xs text-slate-400">Grand Total Invoice Bill:</span>
+                  <span className="text-2xl font-black text-slate-100 font-mono">₹{totalAmount.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
               {/* Notes */}
               <div>
-                <label className="text-xs font-medium text-slate-300 mb-1 block">Dispatch Notes / Transport Reference</label>
+                <label className="text-xs font-semibold text-slate-300 mb-1 block">Dispatch Notes / Transport Vehicle</label>
                 <input
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Dispatched multi-grade lot via Auto #KA01EF1234"
+                  placeholder="e.g. Dispatched via Auto #KA01EF1234, driver Ramesh"
                   className="glass-input w-full text-xs"
                 />
               </div>
 
-              {/* Action Buttons */}
+              {/* Modal Actions */}
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsOpenModal(false)}
-                  className="glass-button-secondary text-xs px-4 py-2"
+                  className="glass-button-secondary text-xs px-4 py-2.5"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="glass-button-primary text-xs px-5 py-2.5"
+                  className="glass-button-primary text-xs px-6 py-2.5 shadow-lg shadow-emerald-950/40"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  Save Outward Dispatch & Generate Bill ({activeDispatchItems.length} Assigned)
+                  Save Outward Dispatch & Generate Bill
                 </button>
               </div>
             </form>
@@ -683,7 +684,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
             <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 text-left text-xs space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-slate-400">Total Bill ({previewSale.lineItems.length} Categories):</span>
+                <span className="text-slate-400">Total Bill:</span>
                 <strong className="text-slate-100">₹{previewSale.totalAmount}</strong>
               </div>
               <div className="flex justify-between">
