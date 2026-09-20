@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   PlusCircle, 
   ShoppingCart, 
@@ -10,9 +10,15 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   IndianRupee,
-  RefreshCw
+  RefreshCw,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Calendar
 } from 'lucide-react';
 import { AppState } from '../lib/storage';
+import { exportDailyCrateSalesToExcel } from '../lib/excel';
+import { generateDailyCrateSalesPDF } from '../lib/pdf';
 
 interface DashboardProps {
   appState: AppState;
@@ -68,6 +74,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const totalBigCratesWithCustomers = appState.emptyCrateLogs
     .filter(l => l.entityType === 'Customer')
     .reduce((sum, l) => l.crateSize === 'Big' ? (l.action === 'Given_To_Customer' ? sum + l.quantity : sum - l.quantity) : sum, 0);
+
+  // Crate Sales Download Widget Filter State & Calculations
+  const [salesPeriodFilter, setSalesPeriodFilter] = useState<'today' | 'yesterday' | '7days' | 'all'>('today');
+
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+
+  const sevenDaysAgoDate = new Date();
+  sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgoDate.toISOString().slice(0, 10);
+
+  const filteredCrateSales = appState.sales.filter(s => {
+    if (salesPeriodFilter === 'today') return s.date === todayStr;
+    if (salesPeriodFilter === 'yesterday') return s.date === yesterdayStr;
+    if (salesPeriodFilter === '7days') return s.date >= sevenDaysAgoStr;
+    return true; // 'all'
+  });
+
+  const filteredSmallCrates = filteredCrateSales.reduce((sum, s) => {
+    return sum + s.lineItems.filter(i => i.crateSize === 'Small').reduce((lSum, i) => lSum + i.quantity, 0);
+  }, 0);
+
+  const filteredBigCrates = filteredCrateSales.reduce((sum, s) => {
+    return sum + s.lineItems.filter(i => i.crateSize === 'Big').reduce((lSum, i) => lSum + i.quantity, 0);
+  }, 0);
+
+  const filteredTotalRevenue = filteredCrateSales.reduce((sum, s) => sum + s.totalAmount, 0);
+
+  const periodLabel = salesPeriodFilter === 'today' ? "Today" : salesPeriodFilter === 'yesterday' ? "Yesterday" : salesPeriodFilter === '7days' ? 'Last 7 Days' : 'All Time';
 
   return (
     <div className="space-y-6">
@@ -217,6 +253,156 @@ export const Dashboard: React.FC<DashboardProps> = ({
         >
           View Crate Tracker & Logs →
         </button>
+      </div>
+
+      {/* Downloadable Daily Crate Sales Summary Section */}
+      <div className="glass-panel p-5 space-y-4 bg-slate-900/90 border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800">
+          <div>
+            <h3 className="font-bold text-slate-100 text-base flex items-center gap-2">
+              <Box className="w-5 h-5 text-emerald-400" />
+              Crate Sales Ledger & Downloadable Summary
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Filter sales dispatches by date, view total crates sold (Small vs Big), and export detailed spreadsheets/PDFs.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filter Buttons */}
+            <div className="flex gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700 text-xs">
+              <button
+                onClick={() => setSalesPeriodFilter('today')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  salesPeriodFilter === 'today' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Today ({appState.sales.filter(s => s.date === todayStr).length})
+              </button>
+
+              <button
+                onClick={() => setSalesPeriodFilter('yesterday')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  salesPeriodFilter === 'yesterday' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Yesterday ({appState.sales.filter(s => s.date === yesterdayStr).length})
+              </button>
+
+              <button
+                onClick={() => setSalesPeriodFilter('7days')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  salesPeriodFilter === '7days' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Last 7 Days
+              </button>
+
+              <button
+                onClick={() => setSalesPeriodFilter('all')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  salesPeriodFilter === 'all' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All Time
+              </button>
+            </div>
+
+            {/* Export Buttons */}
+            <button
+              onClick={() => exportDailyCrateSalesToExcel(filteredCrateSales, periodLabel)}
+              className="glass-button-secondary text-xs px-3 py-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5"
+              title="Download Excel Spreadsheet"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              Download Excel (.xlsx)
+            </button>
+
+            <button
+              onClick={() => generateDailyCrateSalesPDF(filteredCrateSales, periodLabel)}
+              className="glass-button-secondary text-xs px-3 py-2 border-slate-700 hover:bg-slate-800 flex items-center gap-1.5"
+              title="Download PDF Report"
+            >
+              <Download className="w-4 h-4 text-cyan-400" />
+              Download PDF
+            </button>
+          </div>
+        </div>
+
+        {/* Crate Breakdown Cards Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60">
+            <span className="text-[11px] text-slate-400 font-medium block">Small Crates Sold</span>
+            <span className="text-xl font-bold text-slate-100">{filteredSmallCrates}</span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel}</span>
+          </div>
+
+          <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60">
+            <span className="text-[11px] text-slate-400 font-medium block">Big Crates Sold</span>
+            <span className="text-xl font-bold text-amber-300">{filteredBigCrates}</span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel}</span>
+          </div>
+
+          <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60">
+            <span className="text-[11px] text-slate-400 font-medium block">Total Crates Sold</span>
+            <span className="text-xl font-bold text-teal-400">{filteredSmallCrates + filteredBigCrates}</span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel}</span>
+          </div>
+
+          <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60">
+            <span className="text-[11px] text-slate-400 font-medium block">Total Sales Revenue</span>
+            <span className="text-xl font-bold text-emerald-400">₹{filteredTotalRevenue.toLocaleString('en-IN')}</span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">{filteredCrateSales.length} Transactions</span>
+          </div>
+        </div>
+
+        {/* Itemized Sales Dispatches Preview Table */}
+        <div className="overflow-x-auto max-h-[300px]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-800/80 text-slate-400 border-b border-slate-700 uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3">Date</th>
+                <th className="py-2.5 px-3">Invoice #</th>
+                <th className="py-2.5 px-3">Customer Name</th>
+                <th className="py-2.5 px-3">Crate Breakdown & Selling Price</th>
+                <th className="py-2.5 px-3 text-right">Bill Total (₹)</th>
+                <th className="py-2.5 px-3 text-right">Paid (₹)</th>
+                <th className="py-2.5 px-3 text-right">Dues Created (₹)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800 text-slate-300">
+              {filteredCrateSales.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-500 italic">
+                    No sales dispatches recorded for {periodLabel.toLowerCase()}.
+                  </td>
+                </tr>
+              ) : (
+                filteredCrateSales.map((sale) => (
+                  <tr key={sale.id} className="hover:bg-slate-800/40">
+                    <td className="py-2.5 px-3 font-mono text-slate-400">{sale.date}</td>
+                    <td className="py-2.5 px-3 font-mono text-emerald-400 font-semibold">{sale.invoiceNo}</td>
+                    <td className="py-2.5 px-3 font-bold text-slate-200">{sale.customerName}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {sale.lineItems.map((item, idx) => (
+                          <span key={idx} className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-[11px]">
+                            <strong className="text-slate-200">{item.quantity}</strong> {item.crateSize} {item.grade ? `[${item.grade}]` : ''} @ <span className="text-emerald-400">₹{item.ratePerCrate}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-slate-100">₹{sale.totalAmount.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-right text-emerald-400 font-semibold">₹{sale.paidAmount.toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-rose-400">
+                      {sale.balanceAdded === 0 ? <span className="text-emerald-400 text-[10px]">PAID</span> : `₹${sale.balanceAdded.toLocaleString('en-IN')}`}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Two Column Layout: Recent Sales vs Top Dues Customers */}

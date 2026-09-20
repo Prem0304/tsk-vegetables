@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Customer, PassbookEntry } from '../types';
+import { Customer, PassbookEntry, Sale } from '../types';
 
 export interface ParsedCustomerImport {
   validCustomers: Array<{
@@ -119,4 +119,33 @@ export function exportPassbookToExcel(entries: PassbookEntry[], entityName: stri
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Passbook');
   const cleanName = entityName.replace(/[^a-zA-Z0-9]/g, '_');
   XLSX.writeFile(workbook, `TSK_Passbook_${cleanName}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+export function exportDailyCrateSalesToExcel(sales: Sale[], periodTitle: string): void {
+  const exportRows: any[] = [];
+
+  sales.forEach(s => {
+    s.lineItems.forEach(item => {
+      exportRows.push({
+        'Date': s.date,
+        'Invoice No': s.invoiceNo,
+        'Customer Name': s.customerName,
+        'Crate Size': item.crateSize,
+        'Grade / Quality': item.grade || 'Standard',
+        'Quantity (Crates)': item.quantity,
+        'Rate Per Crate (₹)': item.ratePerCrate,
+        'Line Total (₹)': item.total,
+        'Bill Total Amount (₹)': s.totalAmount,
+        'Amount Paid (₹)': s.paidAmount,
+        'Dues Added (₹)': s.balanceAdded,
+        'Payment Status': s.balanceAdded === 0 ? 'PAID FULL' : `Dues: ₹${s.balanceAdded}`,
+      });
+    });
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(exportRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'CrateSales');
+  const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
+  XLSX.writeFile(workbook, `TSK_Crate_Sales_${cleanPeriod}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

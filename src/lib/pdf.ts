@@ -258,3 +258,91 @@ APMC Mandi Yard`;
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
+export function generateDailyCrateSalesPDF(sales: Sale[], periodTitle: string): void {
+  const doc = new jsPDF();
+
+  const totalSmall = sales.reduce((sum, s) => {
+    return sum + s.lineItems.filter(i => i.crateSize === 'Small').reduce((lSum, i) => lSum + i.quantity, 0);
+  }, 0);
+
+  const totalBig = sales.reduce((sum, s) => {
+    return sum + s.lineItems.filter(i => i.crateSize === 'Big').reduce((lSum, i) => lSum + i.quantity, 0);
+  }, 0);
+
+  const totalRevenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, 210, 32, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('T.S.K TRADERS', 14, 14);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`CRATE SALES & DISPATCH REPORT (${periodTitle.toUpperCase()})`, 14, 22);
+  doc.setFontSize(8.5);
+  doc.text(`Ph: 9715813463 / 8190801030 | Date: ${new Date().toLocaleDateString('en-IN')}`, 120, 22);
+
+  // Summary Metrics Box
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(14, 36, 182, 18, 2, 2, 'F');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Small Crates: ${totalSmall}`, 20, 47);
+  doc.text(`Big Crates: ${totalBig}`, 75, 47);
+  doc.text(`Total Crates: ${totalSmall + totalBig}`, 120, 47);
+  doc.setTextColor(16, 185, 129);
+  doc.text(`Total Revenue: Rs ${totalRevenue.toLocaleString('en-IN')}`, 155, 47);
+
+  // Table Headers
+  let yPos = 60;
+  doc.setFillColor(15, 23, 42);
+  doc.rect(14, yPos, 182, 8, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Date', 18, yPos + 5.5);
+  doc.text('Invoice #', 42, yPos + 5.5);
+  doc.text('Customer Name', 72, yPos + 5.5);
+  doc.text('Crate Breakdown & Rate', 118, yPos + 5.5);
+  doc.text('Total (Rs)', 175, yPos + 5.5);
+
+  yPos += 8;
+  doc.setFontSize(8);
+
+  sales.forEach((s, idx) => {
+    if (yPos > 270) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    if (idx % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, yPos, 182, 8, 'F');
+    }
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'normal');
+    doc.text(s.date, 18, yPos + 5.5);
+    doc.text(s.invoiceNo, 42, yPos + 5.5);
+    doc.text(s.customerName.substring(0, 22), 72, yPos + 5.5);
+
+    const itemsSummary = s.lineItems.map(i => `${i.quantity} ${i.crateSize} @ Rs ${i.ratePerCrate}`).join(', ');
+    doc.text(itemsSummary.substring(0, 32), 118, yPos + 5.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${s.totalAmount}`, 175, yPos + 5.5);
+
+    yPos += 8;
+  });
+
+  const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
+  doc.save(`TSK_Crate_Sales_Report_${cleanPeriod}_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
