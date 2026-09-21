@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Box, Plus, RotateCcw, ArrowRightLeft, User, Truck, CheckCircle2, X } from 'lucide-react';
+import { Box, Plus, RotateCcw, ArrowRightLeft, User, Truck, CheckCircle2, X, Download, FileSpreadsheet } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { EmptyCrateLog, CrateSize, EntityType, CrateAction } from '../types';
+import { exportEmptyCrateLogsToExcel } from '../lib/excel';
+import { generateEmptyCratesPDF } from '../lib/pdf';
 
 interface EmptyCrateTrackerProps {
   appState: AppState;
@@ -149,22 +151,42 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            const defaultCust = appState.customers[0];
-            const due = defaultCust ? getPendingReturnableCrates('Customer', defaultCust.id, 'Small') : 0;
-            setEntityType('Customer');
-            setSelectedEntityId(defaultCust?.id || '');
-            setCrateSize('Small');
-            setAction('Returned_By_Customer');
-            setQuantity(due > 0 ? due : 1);
-            setShowLogModal(true);
-          }}
-          className="glass-button-primary text-xs px-4 py-2 bg-gradient-to-r from-amber-600 to-emerald-600"
-        >
-          <ArrowRightLeft className="w-4 h-4" />
-          + Record Crate Return / Movement
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => exportEmptyCrateLogsToExcel(appState.emptyCrateLogs, appState.customers, appState.suppliers)}
+            className="glass-button-secondary text-xs px-3 py-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5"
+            title="Download Excel Spreadsheet"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            Download Excel (.xlsx)
+          </button>
+
+          <button
+            onClick={() => generateEmptyCratesPDF(appState.emptyCrateLogs, appState.customers, appState.suppliers)}
+            className="glass-button-secondary text-xs px-3 py-2 border-slate-700 hover:bg-slate-800 flex items-center gap-1.5"
+            title="Download PDF Report"
+          >
+            <Download className="w-4 h-4 text-amber-400" />
+            Download PDF
+          </button>
+
+          <button
+            onClick={() => {
+              const defaultCust = appState.customers[0];
+              const due = defaultCust ? getPendingReturnableCrates('Customer', defaultCust.id, 'Small') : 0;
+              setEntityType('Customer');
+              setSelectedEntityId(defaultCust?.id || '');
+              setCrateSize('Small');
+              setAction('Returned_By_Customer');
+              setQuantity(due > 0 ? due : 1);
+              setShowLogModal(true);
+            }}
+            className="glass-button-primary text-xs px-4 py-2 bg-gradient-to-r from-amber-600 to-emerald-600"
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            + Record Crate Return / Movement
+          </button>
+        </div>
       </div>
 
       {/* Overview Stat Cards */}

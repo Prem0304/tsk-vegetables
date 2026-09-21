@@ -1,5 +1,5 @@
-import { jsPDF } from 'jspdf';
-import { Sale, PassbookEntry } from '../types';
+import jsPDF from 'jspdf';
+import { Sale, PassbookEntry, EmptyCrateLog, Customer, Supplier } from '../types';
 
 export function printInvoiceElement(invoiceNo: string) {
   const elem = document.getElementById(`invoice-${invoiceNo}`);
@@ -344,5 +344,99 @@ export function generateDailyCrateSalesPDF(sales: Sale[], periodTitle: string): 
 
   const cleanPeriod = periodTitle.replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`TSK_Crate_Sales_Report_${cleanPeriod}_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+export function generateEmptyCratesPDF(
+  logs: EmptyCrateLog[],
+  customers: Customer[],
+  suppliers: Supplier[]
+): void {
+  const doc = new jsPDF();
+
+  const totalSmallOut = customers.reduce((sum, c) => {
+    const cLogs = logs.filter(l => l.entityType === 'Customer' && l.entityId === c.id);
+    const given = cLogs.filter(l => l.crateSize === 'Small' && l.action === 'Given_To_Customer').reduce((s, l) => s + l.quantity, 0);
+    const returned = cLogs.filter(l => l.crateSize === 'Small' && l.action === 'Returned_By_Customer').reduce((s, l) => s + l.quantity, 0);
+    return sum + Math.max(0, given - returned);
+  }, 0);
+
+  const totalBigOut = customers.reduce((sum, c) => {
+    const cLogs = logs.filter(l => l.entityType === 'Customer' && l.entityId === c.id);
+    const given = cLogs.filter(l => l.crateSize === 'Big' && l.action === 'Given_To_Customer').reduce((s, l) => s + l.quantity, 0);
+    const returned = cLogs.filter(l => l.crateSize === 'Big' && l.action === 'Returned_By_Customer').reduce((s, l) => s + l.quantity, 0);
+    return sum + Math.max(0, given - returned);
+  }, 0);
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, 210, 32, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('T.S.K TRADERS', 14, 14);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('EMPTY PLASTIC CRATES & RETURN REPORT', 14, 22);
+  doc.setFontSize(8.5);
+  doc.text(`Ph: 9715813463 / 8190801030 | Date: ${new Date().toLocaleDateString('en-IN')}`, 120, 22);
+
+  // Metrics Box
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(14, 36, 182, 18, 2, 2, 'F');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Small Crates Out: ${totalSmallOut}`, 20, 47);
+  doc.text(`Big Crates Out: ${totalBigOut}`, 85, 47);
+  doc.setTextColor(217, 119, 6);
+  doc.text(`Total Crates Out: ${totalSmallOut + totalBigOut}`, 145, 47);
+
+  // Table Headers
+  let yPos = 60;
+  doc.setFillColor(15, 23, 42);
+  doc.rect(14, yPos, 182, 8, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Date', 18, yPos + 5.5);
+  doc.text('Type', 40, yPos + 5.5);
+  doc.text('Name', 65, yPos + 5.5);
+  doc.text('Action Movement', 115, yPos + 5.5);
+  doc.text('Size', 165, yPos + 5.5);
+  doc.text('Qty', 182, yPos + 5.5);
+
+  yPos += 8;
+  doc.setFontSize(8);
+
+  logs.forEach((l, idx) => {
+    if (yPos > 270) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    if (idx % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, yPos, 182, 8, 'F');
+    }
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'normal');
+    doc.text(l.date, 18, yPos + 5.5);
+    doc.text(l.entityType, 40, yPos + 5.5);
+    doc.text(l.entityName.substring(0, 24), 65, yPos + 5.5);
+    doc.text(l.action.replace(/_/g, ' '), 115, yPos + 5.5);
+    doc.text(l.crateSize, 165, yPos + 5.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${l.quantity}`, 182, yPos + 5.5);
+
+    yPos += 8;
+  });
+
+  doc.save(`TSK_Empty_Crates_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
