@@ -4,6 +4,7 @@ import { AppState } from '../lib/storage';
 import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES } from '../types';
 import { generateSaleInvoicePDF, generateWhatsAppBillLink, printInvoiceElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
+import { formatDateWithDay } from '../lib/dateUtils';
 
 interface SalesModuleProps {
   appState: AppState;
@@ -438,7 +439,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               {appState.sales.map((sale) => (
                 <tr key={sale.id} className="hover:bg-slate-800/40 transition-all">
                   <td className="p-3.5 font-mono font-semibold text-emerald-400">{sale.invoiceNo}</td>
-                  <td className="p-3.5 text-slate-400">{sale.date}</td>
+                  <td className="p-3.5 text-slate-300 font-semibold">{formatDateWithDay(sale.date)}</td>
                   <td className="p-3.5 font-medium text-slate-100">{sale.customerName}</td>
                   <td className="p-3.5">
                     <div className="flex flex-wrap gap-1">

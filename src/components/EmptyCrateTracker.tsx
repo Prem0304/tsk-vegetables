@@ -4,6 +4,7 @@ import { AppState } from '../lib/storage';
 import { EmptyCrateLog, CrateSize, EntityType, CrateAction } from '../types';
 import { exportEmptyCrateLogsToExcel } from '../lib/excel';
 import { generateEmptyCratesPDF } from '../lib/pdf';
+import { formatDateWithDay } from '../lib/dateUtils';
 
 interface EmptyCrateTrackerProps {
   appState: AppState;
@@ -355,7 +356,7 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
             <tbody className="divide-y divide-slate-800 text-slate-200">
               {appState.emptyCrateLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-800/40">
-                  <td className="p-3 text-slate-400">{log.date}</td>
+                  <td className="p-3 text-slate-300 font-semibold">{formatDateWithDay(log.date)}</td>
                   <td className="p-3 text-slate-400">{log.entityType}</td>
                   <td className="p-3 font-medium text-slate-100">{log.entityName}</td>
                   <td className="p-3 font-semibold text-amber-300">{log.crateSize} Crate</td>

@@ -4,6 +4,7 @@ import { AppState } from '../lib/storage';
 import { Supplier, PassbookEntry } from '../types';
 import { generatePassbookPDF } from '../lib/pdf';
 import { exportPassbookToExcel } from '../lib/excel';
+import { formatDateWithDay } from '../lib/dateUtils';
 
 interface SupplierManagementProps {
   appState: AppState;
@@ -276,44 +277,63 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
               {/* Timeline Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-800/80 text-slate-300 uppercase tracking-wider">
+                  <thead className="bg-slate-800/80 text-slate-300 uppercase tracking-wider font-bold">
                     <tr>
-                      <th className="p-3">Date</th>
+                      <th className="p-3">Date & Day</th>
                       <th className="p-3">Transaction</th>
-                      <th className="p-3">Ref / Note</th>
-                      <th className="p-3">Credit (Purchase)</th>
-                      <th className="p-3">Debit (Paid)</th>
-                      <th className="p-3">Running Balance</th>
+                      <th className="p-3">Ref & Detailed Itemized Crates Breakdown</th>
+                      <th className="p-3 text-right">Credit (Purchased ₹)</th>
+                      <th className="p-3 text-right">Debit (Paid ₹)</th>
+                      <th className="p-3 text-right">Running Payables Balance (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                    {supplierPassbook.map((entry) => (
-                      <tr key={entry.id} className="hover:bg-slate-800/40 transition-all">
-                        <td className="p-3 text-slate-400">{entry.date}</td>
-                        <td className="p-3 font-medium">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            entry.transactionType === 'Purchase'
-                              ? 'bg-amber-500/10 text-amber-400'
-                              : 'bg-emerald-500/10 text-emerald-400'
-                          }`}>
-                            {entry.transactionType.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-300 max-w-[150px] truncate">
-                          {entry.referenceId && <span className="font-mono text-emerald-400 mr-1">{entry.referenceId}</span>}
-                          {entry.notes}
-                        </td>
-                        <td className="p-3 font-bold text-amber-400">
-                          {entry.type === 'Credit' ? `₹${entry.amount}` : '-'}
-                        </td>
-                        <td className="p-3 font-bold text-emerald-400">
-                          {entry.type === 'Debit' ? `₹${entry.amount}` : '-'}
-                        </td>
-                        <td className="p-3 font-bold text-slate-100">
-                          ₹{entry.runningBalance.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
+                    {supplierPassbook.map((entry) => {
+                      const relatedPurchase = appState.purchases.find(p => p.purchaseNo === entry.referenceId || (p.supplierId === entry.entityId && p.date === entry.date));
+                      return (
+                        <tr key={entry.id} className="hover:bg-slate-800/40 transition-all">
+                          <td className="p-3 font-semibold text-slate-300 whitespace-nowrap">
+                            {formatDateWithDay(entry.date)}
+                          </td>
+                          <td className="p-3 font-medium">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              entry.transactionType === 'Purchase'
+                                ? 'bg-amber-500/10 text-amber-400'
+                                : 'bg-emerald-500/10 text-emerald-400'
+                            }`}>
+                              {entry.transactionType.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-300">
+                            {entry.referenceId && <span className="font-mono text-emerald-400 font-bold mr-1.5">{entry.referenceId}</span>}
+                            <span className="text-slate-400">{entry.notes}</span>
+                            {relatedPurchase && relatedPurchase.lineItems.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {relatedPurchase.lineItems.map((item, idx) => (
+                                  <div key={idx} className="bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded text-[11px] flex items-center justify-between gap-2">
+                                    <span className="font-semibold text-slate-200">
+                                      {item.quantity} {item.crateSize} Crates {item.grade ? `[${item.grade}]` : ''}
+                                    </span>
+                                    <span className="font-mono text-amber-400 font-bold">
+                                      @ ₹{item.ratePerCrate} = ₹{item.total.toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 font-bold text-amber-400 text-right font-mono">
+                            {entry.type === 'Credit' ? `₹${entry.amount.toLocaleString('en-IN')}` : '-'}
+                          </td>
+                          <td className="p-3 font-bold text-emerald-400 text-right font-mono">
+                            {entry.type === 'Debit' ? `₹${entry.amount.toLocaleString('en-IN')}` : '-'}
+                          </td>
+                          <td className="p-3 font-bold text-slate-100 text-right font-mono">
+                            ₹{entry.runningBalance.toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { Sale, PassbookEntry, EmptyCrateLog, Customer, Supplier } from '../types';
+import { formatDateWithDay } from './dateUtils';
 
 export function printInvoiceElement(invoiceNo: string) {
   const elem = document.getElementById(`invoice-${invoiceNo}`);
@@ -212,8 +213,8 @@ export function generatePassbookPDF(entityName: string, entityType: 'Customer' |
 
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'normal');
-    doc.text(entry.date, 18, yPos + 5);
-    doc.text(entry.transactionType.replace('_', ' '), 42, yPos + 5);
+    doc.text(formatDateWithDay(entry.date), 18, yPos + 5);
+    doc.text(entry.transactionType.replace('_', ' '), 45, yPos + 5);
 
     const refNote = entry.referenceId ? `${entry.referenceId} ${entry.notes ? '- ' + entry.notes : ''}` : entry.notes || '-';
     doc.text(refNote.substring(0, 32), 80, yPos + 5);
@@ -329,7 +330,7 @@ export function generateDailyCrateSalesPDF(sales: Sale[], periodTitle: string): 
 
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'normal');
-    doc.text(s.date, 18, yPos + 5.5);
+    doc.text(formatDateWithDay(s.date), 18, yPos + 5.5);
     doc.text(s.invoiceNo, 42, yPos + 5.5);
     doc.text(s.customerName.substring(0, 22), 72, yPos + 5.5);
 
@@ -425,7 +426,7 @@ export function generateEmptyCratesPDF(
 
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'normal');
-    doc.text(l.date, 18, yPos + 5.5);
+    doc.text(formatDateWithDay(l.date), 18, yPos + 5.5);
     doc.text(l.entityType, 40, yPos + 5.5);
     doc.text(l.entityName.substring(0, 24), 65, yPos + 5.5);
     doc.text(l.action.replace(/_/g, ' '), 115, yPos + 5.5);

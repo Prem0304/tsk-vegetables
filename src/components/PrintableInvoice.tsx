@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sale, Customer } from '../types';
+import { formatDateWithDay } from '../lib/dateUtils';
 
 interface PrintableInvoiceProps {
   sale: Sale;
@@ -97,7 +98,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, custom
         <div className="text-right">
           <span className="text-slate-500 font-semibold block text-[10px] uppercase">Invoice Receipt</span>
           <strong className="text-sm font-mono font-bold text-emerald-800 block">{sale.invoiceNo}</strong>
-          <span className="text-slate-700 block mt-0.5">Date: <strong className="font-mono">{sale.date}</strong></span>
+          <span className="text-slate-700 block mt-0.5">Date: <strong className="font-mono">{formatDateWithDay(sale.date)}</strong></span>
           <span className="inline-block mt-1 px-2 py-0.5 bg-slate-200 text-slate-800 rounded font-semibold text-[10px]">
             Mode: {sale.paymentMethod}
           </span>

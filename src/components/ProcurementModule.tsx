@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit3, Truck, CheckCircle2, UserPlus, X } from 'lucide-react';
-import { AppState } from '../lib/storage';
+import { AppState, exportAppStateToJson } from '../lib/storage';
+import { formatDateWithDay } from '../lib/dateUtils';
 import { Purchase, PurchaseLineItem, CrateSize, Supplier, PassbookEntry, EmptyCrateLog, STANDARD_GRADES, GradeStockItem } from '../types';
 import { VerifyPasswordModal } from './VerifyPasswordModal';
 
@@ -558,7 +559,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
               {appState.purchases.map((purchase) => (
                 <tr key={purchase.id} className="hover:bg-slate-800/40 transition-all">
                   <td className="p-3.5 font-mono font-semibold text-emerald-400">{purchase.purchaseNo}</td>
-                  <td className="p-3.5 text-slate-400">{purchase.date}</td>
+                  <td className="p-3.5 text-slate-300 font-semibold">{formatDateWithDay(purchase.date)}</td>
                   <td className="p-3.5 font-medium text-slate-100">{purchase.supplierName}</td>
                   <td className="p-3.5">
                     <div className="flex flex-wrap gap-1">

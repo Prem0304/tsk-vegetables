@@ -19,6 +19,7 @@ import {
 import { AppState } from '../lib/storage';
 import { exportDailyCrateSalesToExcel } from '../lib/excel';
 import { generateDailyCrateSalesPDF } from '../lib/pdf';
+import { formatDateWithDay } from '../lib/dateUtils';
 
 interface DashboardProps {
   appState: AppState;
@@ -385,7 +386,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               ) : (
                 filteredCrateSales.map((sale) => (
                   <tr key={sale.id} className="hover:bg-slate-800/40">
-                    <td className="py-2.5 px-3 font-mono text-slate-400">{sale.date}</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-400">{formatDateWithDay(sale.date)}</td>
                     <td className="py-2.5 px-3 font-mono text-emerald-400 font-semibold">{sale.invoiceNo}</td>
                     <td className="py-2.5 px-3 font-bold text-slate-200">{sale.customerName}</td>
                     <td className="py-2.5 px-3">
@@ -441,7 +442,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">
-                    {sale.lineItems.map(i => `${i.quantity} ${i.crateSize}`).join(', ')} • {sale.date}
+                    {sale.lineItems.map(i => `${i.quantity} ${i.crateSize}`).join(', ')} • {formatDateWithDay(sale.date)}
                   </p>
                 </div>
                 <div className="text-right">

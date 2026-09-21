@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Customer, Supplier, PassbookEntry, Sale, EmptyCrateLog } from '../types';
+import { formatDateWithDay } from './dateUtils';
 
 export interface ParsedCustomerImport {
   validCustomers: Array<{
@@ -104,7 +105,7 @@ export function exportCustomersToExcel(customers: Customer[]): void {
 
 export function exportPassbookToExcel(entries: PassbookEntry[], entityName: string): void {
   const exportData = entries.map(e => ({
-    'Date': e.date,
+    'Date & Day': formatDateWithDay(e.date),
     'Transaction Type': e.transactionType,
     'Type': e.type,
     'Amount (₹)': e.amount,
@@ -127,7 +128,7 @@ export function exportDailyCrateSalesToExcel(sales: Sale[], periodTitle: string)
   sales.forEach(s => {
     s.lineItems.forEach(item => {
       exportRows.push({
-        'Date': s.date,
+        'Date & Day': formatDateWithDay(s.date),
         'Invoice No': s.invoiceNo,
         'Customer Name': s.customerName,
         'Crate Size': item.crateSize,
@@ -159,7 +160,7 @@ export function exportEmptyCrateLogsToExcel(
 
   // Sheet 1: Crate Movement Logs
   const logRows = logs.map(l => ({
-    'Date': l.date,
+    'Date & Day': formatDateWithDay(l.date),
     'Type': l.entityType,
     'Name': l.entityName,
     'Crate Size': l.crateSize,
