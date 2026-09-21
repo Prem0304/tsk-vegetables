@@ -81,8 +81,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-16">
           {/* Logo & Business Name */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-950/50">
-              <span className="font-black text-xl text-white tracking-tighter">TSK</span>
+            <div className="w-11 h-11 rounded-xl bg-slate-950 border border-emerald-500/30 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-950/50 overflow-hidden">
+              <img src="/tsk_logo.png" alt="T.S.K Vegetables Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">

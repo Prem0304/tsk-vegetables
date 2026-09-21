@@ -109,16 +109,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div className="space-y-6">
       {/* Top Banner & Date Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-6 bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/40 border-emerald-500/20">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
-              Mandi Overview & Live Summary
-            </h2>
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-950/80 p-1 border border-emerald-500/30 flex-shrink-0 shadow-lg shadow-emerald-950/40 overflow-hidden">
+            <img src="/tsk_logo.png" alt="T.S.K Vegetables Official Logo" className="w-full h-full object-contain" />
           </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Real-time daily operations for T.S.K Vegetables • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
+                Mandi Overview & Live Summary
+              </h2>
+            </div>
+            <p className="text-sm text-slate-400 mt-1">
+              Real-time daily operations for T.S.K Vegetables • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
         </div>
 
         {/* Quick Actions Group */}
