@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Box, Plus, RotateCcw, ArrowRightLeft, User, Truck, CheckCircle2, X, Download, FileSpreadsheet } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { EmptyCrateLog, CrateSize, EntityType, CrateAction } from '../types';
-import { exportEmptyCrateLogsToExcel } from '../lib/excel';
-import { generateEmptyCratesPDF } from '../lib/pdf';
+import { exportEmptyCrateLogsToExcel, exportCrateDuesToExcel } from '../lib/excel';
+import { generateEmptyCratesPDF, generateCrateDuesPDF } from '../lib/pdf';
 import { formatDateWithDay } from '../lib/dateUtils';
 
 interface EmptyCrateTrackerProps {
@@ -154,21 +154,39 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => exportEmptyCrateLogsToExcel(appState.emptyCrateLogs, appState.customers, appState.suppliers)}
-            className="glass-button-secondary text-xs px-3 py-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5"
-            title="Download Excel Spreadsheet"
+            onClick={() => exportCrateDuesToExcel(appState.customers, appState.suppliers, appState.emptyCrateLogs)}
+            className="glass-button-secondary text-xs px-3 py-2 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-1.5 font-semibold"
+            title="Download Pending Return Crates Dues Excel Sheet"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            Download Excel (.xlsx)
+            Download Crate Dues Excel
+          </button>
+
+          <button
+            onClick={() => generateCrateDuesPDF(appState.customers, appState.suppliers, appState.emptyCrateLogs)}
+            className="glass-button-secondary text-xs px-3 py-2 border-amber-500/40 text-amber-300 hover:bg-amber-500/10 flex items-center gap-1.5 font-semibold"
+            title="Download Pending Return Crates Dues PDF Report"
+          >
+            <Download className="w-4 h-4 text-amber-400" />
+            Download Crate Dues PDF
+          </button>
+
+          <button
+            onClick={() => exportEmptyCrateLogsToExcel(appState.emptyCrateLogs, appState.customers, appState.suppliers)}
+            className="glass-button-secondary text-xs px-2.5 py-2 border-slate-700 text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
+            title="Download Full Crate Movement Logs Excel"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />
+            All Logs Excel
           </button>
 
           <button
             onClick={() => generateEmptyCratesPDF(appState.emptyCrateLogs, appState.customers, appState.suppliers)}
-            className="glass-button-secondary text-xs px-3 py-2 border-slate-700 hover:bg-slate-800 flex items-center gap-1.5"
-            title="Download PDF Report"
+            className="glass-button-secondary text-xs px-2.5 py-2 border-slate-700 text-slate-300 hover:bg-slate-800 flex items-center gap-1.5"
+            title="Download Full Crate Movement Logs PDF"
           >
-            <Download className="w-4 h-4 text-amber-400" />
-            Download PDF
+            <Download className="w-3.5 h-3.5 text-slate-400" />
+            All Logs PDF
           </button>
 
           <button
@@ -221,11 +239,30 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Customer Crate Balances Table */}
         <div className="glass-panel p-5 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
             <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
               <User className="w-4 h-4 text-amber-400" />
               Customer Empty Crate Dues (Out With Buyer)
             </h3>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportCrateDuesToExcel(appState.customers, appState.suppliers, appState.emptyCrateLogs)}
+                className="text-[11px] px-2.5 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 rounded flex items-center gap-1 font-semibold"
+                title="Download Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                Excel
+              </button>
+              <button
+                onClick={() => generateCrateDuesPDF(appState.customers, appState.suppliers, appState.emptyCrateLogs)}
+                className="text-[11px] px-2.5 py-1 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 rounded flex items-center gap-1 font-semibold"
+                title="Download PDF"
+              >
+                <Download className="w-3.5 h-3.5" />
+                PDF
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">

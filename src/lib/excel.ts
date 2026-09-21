@@ -221,3 +221,60 @@ export function exportEmptyCrateLogsToExcel(
 
   XLSX.writeFile(workbook, `TSK_Empty_Crates_Data_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
+
+export function exportCrateDuesToExcel(
+  customers: Customer[],
+  suppliers: Supplier[],
+  logs: EmptyCrateLog[]
+): void {
+  const workbook = XLSX.utils.book_new();
+
+  // Sheet 1: Customer Pending Return Crate Dues
+  const custRows = customers.map(c => {
+    const cLogs = logs.filter(l => l.entityType === 'Customer' && l.entityId === c.id);
+    const smallGiven = cLogs.filter(l => l.crateSize === 'Small' && l.action === 'Given_To_Customer').reduce((s, l) => s + l.quantity, 0);
+    const smallReturned = cLogs.filter(l => l.crateSize === 'Small' && l.action === 'Returned_By_Customer').reduce((s, l) => s + l.quantity, 0);
+    const smallPending = Math.max(0, smallGiven - smallReturned);
+
+    const bigGiven = cLogs.filter(l => l.crateSize === 'Big' && l.action === 'Given_To_Customer').reduce((s, l) => s + l.quantity, 0);
+    const bigReturned = cLogs.filter(l => l.crateSize === 'Big' && l.action === 'Returned_By_Customer').reduce((s, l) => s + l.quantity, 0);
+    const bigPending = Math.max(0, bigGiven - bigReturned);
+
+    return {
+      'Customer Name': c.name,
+      'Phone Number': c.phone,
+      'Shop Location': c.shopLocation,
+      'Small Crates Due': smallPending,
+      'Big Crates Due': bigPending,
+      'Total Return Crates Due': smallPending + bigPending,
+    };
+  });
+  const sheet1 = XLSX.utils.json_to_sheet(custRows);
+  XLSX.utils.book_append_sheet(workbook, sheet1, 'Customer Crate Dues');
+
+  // Sheet 2: Supplier Crate Balances
+  const supRows = suppliers.map(s => {
+    const sLogs = logs.filter(l => l.entityType === 'Supplier' && l.entityId === s.id);
+    const smallRec = sLogs.filter(l => l.crateSize === 'Small' && l.action === 'Received_From_Supplier').reduce((sum, l) => sum + l.quantity, 0);
+    const smallRet = sLogs.filter(l => l.crateSize === 'Small' && l.action === 'Returned_To_Supplier').reduce((sum, l) => sum + l.quantity, 0);
+    const smallPending = Math.max(0, smallRec - smallRet);
+
+    const bigRec = sLogs.filter(l => l.crateSize === 'Big' && l.action === 'Received_From_Supplier').reduce((sum, l) => sum + l.quantity, 0);
+    const bigRet = sLogs.filter(l => l.crateSize === 'Big' && l.action === 'Returned_To_Supplier').reduce((sum, l) => sum + l.quantity, 0);
+    const bigPending = Math.max(0, bigRec - bigRet);
+
+    return {
+      'Supplier Name': s.name,
+      'Phone Number': s.phone,
+      'Address': s.address,
+      'Small Crates Owed': smallPending,
+      'Big Crates Owed': bigPending,
+      'Total Crates Owed': smallPending + bigPending,
+    };
+  });
+  const sheet2 = XLSX.utils.json_to_sheet(supRows);
+  XLSX.utils.book_append_sheet(workbook, sheet2, 'Supplier Crate Balances');
+
+  XLSX.writeFile(workbook, `TSK_Return_Crates_Dues_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+

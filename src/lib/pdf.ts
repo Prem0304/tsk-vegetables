@@ -441,3 +441,115 @@ export function generateEmptyCratesPDF(
   doc.save(`TSK_Empty_Crates_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+export function generateCrateDuesPDF(
+  customers: Customer[],
+  suppliers: Supplier[],
+  logs: EmptyCrateLog[]
+): void {
+  const doc = new jsPDF();
+
+  const custBalances = customers.map(c => {
+    const cLogs = logs.filter(l => l.entityType === 'Customer' && l.entityId === c.id);
+    const smallGiven = cLogs.filter(l => l.crateSize === 'Small' && l.action === 'Given_To_Customer').reduce((s, l) => s + l.quantity, 0);
+    const smallReturned = cLogs.filter(l => l.crateSize === 'Small' && l.action === 'Returned_By_Customer').reduce((s, l) => s + l.quantity, 0);
+    const smallPending = Math.max(0, smallGiven - smallReturned);
+
+    const bigGiven = cLogs.filter(l => l.crateSize === 'Big' && l.action === 'Given_To_Customer').reduce((s, l) => s + l.quantity, 0);
+    const bigReturned = cLogs.filter(l => l.crateSize === 'Big' && l.action === 'Returned_By_Customer').reduce((s, l) => s + l.quantity, 0);
+    const bigPending = Math.max(0, bigGiven - bigReturned);
+
+    return {
+      name: c.name,
+      phone: c.phone,
+      shop: c.shopLocation,
+      smallPending,
+      bigPending,
+      totalPending: smallPending + bigPending,
+    };
+  });
+
+  const totalSmallCust = custBalances.reduce((sum, c) => sum + c.smallPending, 0);
+  const totalBigCust = custBalances.reduce((sum, c) => sum + c.bigPending, 0);
+  const grandTotalCust = totalSmallCust + totalBigCust;
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, 210, 32, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('T.S.K TRADERS', 14, 14);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('PENDING PLASTIC CRATE DUES STATEMENT', 14, 22);
+  doc.setFontSize(8.5);
+  doc.text(`Ph: 9715813463 / 8190801030 | Date: ${formatDateWithDay(new Date().toISOString().slice(0, 10))}`, 110, 22);
+
+  // Summary Banner
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(14, 36, 182, 18, 2, 2, 'F');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Small Crates Due: ${totalSmallCust}`, 20, 47);
+  doc.text(`Big Crates Due: ${totalBigCust}`, 85, 47);
+  doc.setTextColor(220, 38, 38);
+  doc.text(`Total Crates Pending Return: ${grandTotalCust}`, 140, 47);
+
+  // Section Header
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Customer Return Crates Outstanding List', 14, 62);
+
+  // Table Headers
+  let yPos = 66;
+  doc.setFillColor(15, 23, 42);
+  doc.rect(14, yPos, 182, 8, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Customer Name', 18, yPos + 5.5);
+  doc.text('Phone', 75, yPos + 5.5);
+  doc.text('Location / Shop', 110, yPos + 5.5);
+  doc.text('Small Due', 152, yPos + 5.5);
+  doc.text('Big Due', 172, yPos + 5.5);
+  doc.text('Total', 187, yPos + 5.5);
+
+  yPos += 8;
+  doc.setFontSize(8);
+
+  custBalances.forEach((cb, idx) => {
+    if (yPos > 270) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    if (idx % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, yPos, 182, 7, 'F');
+    }
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'normal');
+    doc.text(cb.name.substring(0, 25), 18, yPos + 5);
+    doc.text(cb.phone, 75, yPos + 5);
+    doc.text((cb.shop || '-').substring(0, 20), 110, yPos + 5);
+    doc.text(`${cb.smallPending}`, 152, yPos + 5);
+    doc.text(`${cb.bigPending}`, 172, yPos + 5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(cb.totalPending > 0 ? 220 : 15, cb.totalPending > 0 ? 38 : 23, cb.totalPending > 0 ? 38 : 42);
+    doc.text(`${cb.totalPending}`, 187, yPos + 5);
+
+    yPos += 7;
+  });
+
+  doc.save(`TSK_Pending_Return_Crates_Dues_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+
