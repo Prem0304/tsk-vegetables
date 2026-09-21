@@ -15,21 +15,25 @@ export interface AppState {
 
 const STORAGE_KEY = 'tsk_vegetables_app_state_v2';
 
+export function getDemoAppState(): AppState {
+  return {
+    suppliers: initialSuppliers,
+    customers: initialCustomers,
+    inventory: initialInventory,
+    purchases: initialPurchases,
+    sales: initialSales,
+    passbookEntries: initialPassbookEntries,
+    emptyCrateLogs: initialEmptyCrateLogs,
+    wastageLogs: initialWastageLogs,
+    adminPin: '1234',
+  };
+}
+
 export function loadAppState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      const defaultState: AppState = {
-        suppliers: [],
-        customers: [],
-        inventory: { smallCratesCount: 0, bigCratesCount: 0, smallAvgCost: 0, bigAvgCost: 0 },
-        purchases: [],
-        sales: [],
-        passbookEntries: [],
-        emptyCrateLogs: [],
-        wastageLogs: [],
-        adminPin: '1234',
-      };
+      const defaultState = getDemoAppState();
       saveAppState(defaultState);
       return defaultState;
     }
@@ -37,20 +41,16 @@ export function loadAppState(): AppState {
     if (!parsed.adminPin) {
       parsed.adminPin = '1234';
     }
+    // If state is completely empty, populate demo data
+    if ((!parsed.suppliers || parsed.suppliers.length === 0) && (!parsed.sales || parsed.sales.length === 0)) {
+      const defaultState = getDemoAppState();
+      saveAppState(defaultState);
+      return defaultState;
+    }
     return parsed;
   } catch (error) {
     console.error('Failed to load state from LocalStorage:', error);
-    return {
-      suppliers: [],
-      customers: [],
-      inventory: { smallCratesCount: 0, bigCratesCount: 0, smallAvgCost: 0, bigAvgCost: 0 },
-      purchases: [],
-      sales: [],
-      passbookEntries: [],
-      emptyCrateLogs: [],
-      wastageLogs: [],
-      adminPin: '1234',
-    };
+    return getDemoAppState();
   }
 }
 
@@ -63,18 +63,9 @@ export function saveAppState(state: AppState): void {
 }
 
 export function resetAppStateToDemo(): AppState {
-  const emptyState: AppState = {
-    suppliers: [],
-    customers: [],
-    inventory: { smallCratesCount: 0, bigCratesCount: 0, smallAvgCost: 0, bigAvgCost: 0 },
-    purchases: [],
-    sales: [],
-    passbookEntries: [],
-    emptyCrateLogs: [],
-    wastageLogs: [],
-  };
-  saveAppState(emptyState);
-  return emptyState;
+  const demoState = getDemoAppState();
+  saveAppState(demoState);
+  return demoState;
 }
 
 export function exportAppStateToJson(state: AppState): string {
