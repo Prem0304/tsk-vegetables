@@ -25,3 +25,14 @@ export function formatDateWithDay(dateStr?: string | null): string {
 export function getTodayDateString(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+export function formatPhoneForWhatsApp(phoneStr?: string | null): string {
+  if (!phoneStr) return '';
+  const digits = phoneStr.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+  return digits;
+}
+

@@ -24,7 +24,7 @@ import { Customer, PassbookEntry, Sale } from '../types';
 import { parseCustomerExcel, downloadSampleCustomerExcel, exportCustomersToExcel, exportPassbookToExcel } from '../lib/excel';
 import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, printInvoiceElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
-import { formatDateWithDay } from '../lib/dateUtils';
+import { formatDateWithDay, formatPhoneForWhatsApp } from '../lib/dateUtils';
 
 interface CustomerManagementProps {
   appState: AppState;
@@ -237,8 +237,8 @@ This is a friendly reminder regarding your outstanding vegetable dues balance of
 
 Please settle via UPI / Cash at APMC Mandi Yard at your earliest convenience.
 Thank you!`;
-    const cleanPhone = selectedCustomer.phone.replace(/[^0-9]/g, '');
-    return `https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${encodeURIComponent(message)}`;
+    const cleanPhone = formatPhoneForWhatsApp(selectedCustomer.phone);
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
   const [activeTabType, setActiveTabType] = useState<'supplies' | 'passbook'>('supplies');
@@ -711,7 +711,10 @@ Thank you!`;
               </button>
 
               <a
-                href={generateWhatsAppBillLink(previewSaleModal)}
+                href={generateWhatsAppBillLink(
+                  previewSaleModal,
+                  appState.customers.find(c => c.id === previewSaleModal.customerId)?.phone || selectedCustomer?.phone
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"

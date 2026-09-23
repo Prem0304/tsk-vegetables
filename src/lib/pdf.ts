@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { Sale, PassbookEntry, EmptyCrateLog, Customer, Supplier } from '../types';
-import { formatDateWithDay } from './dateUtils';
+import { formatDateWithDay, formatPhoneForWhatsApp } from './dateUtils';
 
 export function printInvoiceElement(invoiceNo: string) {
   const elem = document.getElementById(`invoice-${invoiceNo}`);
@@ -236,14 +236,15 @@ export function generatePassbookPDF(entityName: string, entityType: 'Customer' |
   doc.save(`TSK_${entityType}_Passbook_${entityName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
 }
 
-export function generateWhatsAppBillLink(sale: Sale): string {
+export function generateWhatsAppBillLink(sale: Sale, customerPhone?: string): string {
+  const cleanPhone = formatPhoneForWhatsApp(customerPhone);
   const message = `*T.S.K TRADERS - தக்காளி காய்கனி கமிஷன் மண்டி*
 Ph: 9715813463 / 8190801030
 
 *ஸ்ரீ வாழகுருநாதன் துணை | ஸ்ரீ அங்காள ஈஸ்வரி துணை*
 
 *INVOICE RECEIPT:* #${sale.invoiceNo}
-Date: ${sale.date}
+Date: ${formatDateWithDay(sale.date)}
 Customer: ${sale.customerName}
 
 *Dispatched Items:*
@@ -256,7 +257,7 @@ ${sale.lineItems.map(item => `• ${item.crateSize} Crate ${item.grade ? `[${ite
 Thank you for trading with T.S.K TRADERS!
 APMC Mandi Yard`;
 
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
 export function generateDailyCrateSalesPDF(sales: Sale[], periodTitle: string): void {

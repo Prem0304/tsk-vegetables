@@ -812,7 +812,10 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               </button>
 
               <a
-                href={generateWhatsAppBillLink(previewSale)}
+                href={generateWhatsAppBillLink(
+                  previewSale,
+                  appState.customers.find(c => c.id === previewSale.customerId)?.phone
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
