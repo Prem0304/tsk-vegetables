@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, ShieldAlert, KeyRound, Eye, EyeOff, X } from 'lucide-react';
 
 interface VerifyPasswordModalProps {
@@ -22,6 +22,17 @@ export const VerifyPasswordModal: React.FC<VerifyPasswordModalProps> = ({
   const [showPin, setShowPin] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -38,8 +49,8 @@ export const VerifyPasswordModal: React.FC<VerifyPasswordModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700 shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto my-auto">
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-amber-400" />

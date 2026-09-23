@@ -37,6 +37,17 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
   const [newCustPhone, setNewCustPhone] = useState<string>('');
   const [newCustShop, setNewCustShop] = useState<string>('');
 
+  useEffect(() => {
+    if (isOpenModal || previewSale !== null || showAddCustomer) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpenModal, previewSale, showAddCustomer]);
+
   // Helper to get exact stock available for a given crate size & grade
   const getMaxAvailableForLine = (crateSize: CrateSize, grade?: string): number => {
     const gradeStock = appState.inventory.gradeStocks?.find(
@@ -482,8 +493,8 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
       {/* Ultra Clean & Clear Create Outward Sale Modal */}
       {isOpenModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto shadow-2xl">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
@@ -760,8 +771,8 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
       {/* Sale Digital Bill Generated Preview Modal */}
       {previewSale && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 text-center my-8 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-3xl p-6 space-y-5 bg-slate-900 border-slate-700 text-center max-h-[90vh] overflow-y-auto my-auto flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
               <div className="flex items-center gap-2 text-left">
                 <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
@@ -824,8 +835,8 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
 
       {/* Inline Add Customer Drawer */}
       {showAddCustomer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-5 space-y-4 bg-slate-900 border-slate-700">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-md p-5 space-y-4 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <h4 className="font-bold text-slate-100 text-sm">Add New Customer Record</h4>
             <form onSubmit={handleAddNewCustomer} className="space-y-3">
               <div>

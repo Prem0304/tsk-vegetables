@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   Calendar, 
@@ -39,6 +39,17 @@ export const ProfitAnalytics: React.FC<ProfitAnalyticsProps> = ({
 }) => {
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('all');
   const [showWastageModal, setShowWastageModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showWastageModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showWastageModal]);
 
   // Wastage Form State
   const [wastageCrateSize, setWastageCrateSize] = useState<CrateSize>('Small');
@@ -427,8 +438,8 @@ export const ProfitAnalytics: React.FC<ProfitAnalyticsProps> = ({
 
       {/* Log Wastage Modal */}
       {showWastageModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2 text-rose-400">
                 <AlertOctagon className="w-5 h-5" />

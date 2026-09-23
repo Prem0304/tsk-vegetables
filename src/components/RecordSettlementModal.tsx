@@ -30,6 +30,7 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       setEntityType(defaultType);
       if (defaultEntityId) {
         setSelectedEntityId(defaultEntityId);
@@ -40,7 +41,12 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
       setReferenceId('');
       setNotes('');
       setDate(new Date().toISOString().slice(0, 10));
+    } else {
+      document.body.style.overflow = '';
     }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen, defaultType, defaultEntityId, appState.customers, appState.suppliers]);
 
   if (!isOpen) return null;
@@ -125,8 +131,8 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="glass-panel w-full max-w-md p-6 space-y-5 bg-slate-900 border-slate-700">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <div className="glass-panel w-full max-w-md p-6 space-y-5 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
             <Wallet className="w-5 h-5 text-emerald-400" />

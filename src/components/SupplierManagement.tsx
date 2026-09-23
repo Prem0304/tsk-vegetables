@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Truck, Search, Plus, Download, Wallet, Phone, MapPin, CheckCircle2, FileSpreadsheet, X } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Supplier, PassbookEntry } from '../types';
@@ -32,6 +32,17 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
   const [supPhone, setSupPhone] = useState<string>('');
   const [supAddress, setSupAddress] = useState<string>('');
   const [openingBalance, setOpeningBalance] = useState<string>('0');
+
+  useEffect(() => {
+    if (showPayModal || showAddModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showPayModal, showAddModal]);
 
   const selectedSupplier = appState.suppliers.find(s => s.id === selectedSupplierId);
   const supplierPassbook = appState.passbookEntries.filter(
@@ -348,8 +359,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* Pay Supplier Settlement Modal */}
       {showPayModal && selectedSupplier && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-6 space-y-5 bg-slate-900 border-slate-700">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-md p-6 space-y-5 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-emerald-400" />
@@ -449,8 +460,8 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
 
       {/* Add Supplier Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <h3 className="text-base font-bold text-slate-100">Add New Supplier Record</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">

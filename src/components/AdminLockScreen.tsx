@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, KeyRound, Eye, EyeOff, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface AdminLockScreenProps {
@@ -16,6 +16,17 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
   const [showPin, setShowPin] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [showChangePinModal, setShowChangePinModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showChangePinModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showChangePinModal]);
 
   // Change PIN state
   const [oldPinInput, setOldPinInput] = useState<string>('');
@@ -152,8 +163,8 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
 
       {/* Change Passcode Drawer Modal */}
       {showChangePinModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-sm p-6 space-y-4 bg-slate-900 border-slate-700">
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-sm p-6 space-y-4 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
               <Lock className="w-4 h-4 text-emerald-400" /> Change Admin Passcode
             </h3>

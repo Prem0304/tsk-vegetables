@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit3, Truck, CheckCircle2, UserPlus, X } from 'lucide-react';
 import { AppState, exportAppStateToJson } from '../lib/storage';
 import { formatDateWithDay } from '../lib/dateUtils';
@@ -18,6 +18,16 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
   isOpenModal,
   setIsOpenModal,
 }) => {
+  useEffect(() => {
+    if (isOpenModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpenModal]);
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
 
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(appState.suppliers[0]?.id || '');
@@ -600,8 +610,8 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
 
       {/* New / Edit Purchase Modal */}
       {isOpenModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 my-8">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Truck className="w-5 h-5 text-emerald-400" />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Plus, RotateCcw, ArrowRightLeft, User, Truck, CheckCircle2, X, Download, FileSpreadsheet } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { EmptyCrateLog, CrateSize, EntityType, CrateAction } from '../types';
@@ -22,6 +22,17 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
   const [action, setAction] = useState<CrateAction>('Returned_By_Customer');
   const [quantity, setQuantity] = useState<number>(10);
   const [notes, setNotes] = useState<string>('');
+
+  useEffect(() => {
+    if (showLogModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showLogModal]);
 
   // Calculate Crate Balances per Customer
   const customerCrateBalances = appState.customers.map((customer) => {
@@ -417,8 +428,8 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
 
       {/* Record Crate Movement Modal */}
       {showLogModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-md p-6 space-y-4 bg-slate-900 border-slate-700 max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Box className="w-5 h-5 text-amber-400" />
