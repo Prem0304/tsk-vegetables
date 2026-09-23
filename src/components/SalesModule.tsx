@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box, ShieldAlert, Printer } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES } from '../types';
-import { generateSaleInvoicePDF, generateWhatsAppBillLink, printInvoiceElement } from '../lib/pdf';
+import { generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, printInvoiceElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
 import { formatDateWithDay } from '../lib/dateUtils';
 
@@ -811,18 +811,16 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                 Print Bill (Thermal/A4)
               </button>
 
-              <a
-                href={generateWhatsAppBillLink(
+              <button
+                onClick={() => shareInvoiceOnWhatsApp(
                   previewSale,
                   appState.customers.find(c => c.id === previewSale.customerId)?.phone
                 )}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
               >
                 <Share2 className="w-4 h-4" />
-                Share Bill on WhatsApp
-              </a>
+                Share Bill & PDF on WhatsApp
+              </button>
 
               <button
                 onClick={() => generateSaleInvoicePDF(previewSale)}

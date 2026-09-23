@@ -22,7 +22,7 @@ import {
 import { AppState } from '../lib/storage';
 import { Customer, PassbookEntry, Sale } from '../types';
 import { parseCustomerExcel, downloadSampleCustomerExcel, exportCustomersToExcel, exportPassbookToExcel } from '../lib/excel';
-import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, printInvoiceElement } from '../lib/pdf';
+import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, printInvoiceElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
 import { formatDateWithDay, formatPhoneForWhatsApp } from '../lib/dateUtils';
 
@@ -710,18 +710,16 @@ Thank you!`;
                 Print Bill (Thermal/A4)
               </button>
 
-              <a
-                href={generateWhatsAppBillLink(
+              <button
+                onClick={() => shareInvoiceOnWhatsApp(
                   previewSaleModal,
                   appState.customers.find(c => c.id === previewSaleModal.customerId)?.phone || selectedCustomer?.phone
                 )}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
               >
                 <Share2 className="w-4 h-4" />
-                Share Bill on WhatsApp
-              </a>
+                Share Bill & PDF on WhatsApp
+              </button>
 
               <button
                 onClick={() => generateSaleInvoicePDF(previewSaleModal)}

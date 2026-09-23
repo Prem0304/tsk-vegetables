@@ -44,7 +44,7 @@ export function printInvoiceElement(invoiceNo: string) {
   printWindow.document.close();
 }
 
-export function generateSaleInvoicePDF(sale: Sale) {
+export function createSaleInvoicePDFDoc(sale: Sale): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -71,7 +71,7 @@ export function generateSaleInvoicePDF(sale: Sale) {
   doc.text('INVOICE', 112, 10);
   doc.setFontSize(8);
   doc.text(`#${sale.invoiceNo}`, 112, 15);
-  doc.text(`Date: ${sale.date}`, 112, 20);
+  doc.text(`Date: ${formatDateWithDay(sale.date)}`, 112, 20);
 
   // Customer Details Box
   doc.setTextColor(15, 23, 42);
@@ -140,7 +140,64 @@ export function generateSaleInvoicePDF(sale: Sale) {
   doc.text('Thank you for trading with T.S.K TRADERS! Please return empty crates promptly.', 10, 135);
   doc.text('Contact: 9715813463 / 8190801030', 10, 139);
 
+  return doc;
+}
+
+export function generateSaleInvoicePDF(sale: Sale) {
+  const doc = createSaleInvoicePDFDoc(sale);
   doc.save(`${sale.invoiceNo}_${sale.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+}
+
+export async function shareInvoiceOnWhatsApp(sale: Sale, customerPhone?: string): Promise<void> {
+  const cleanPhone = formatPhoneForWhatsApp(customerPhone);
+  const message = `*T.S.K TRADERS - தக்காளி காய்கனி கமிஷன் மண்டி*
+Ph: 9715813463 / 8190801030
+
+*ஸ்ரீ வாழகுருநாதன் துணை | ஸ்ரீ அங்காள ஈஸ்வரி துணை*
+
+*INVOICE RECEIPT:* #${sale.invoiceNo}
+Date: ${formatDateWithDay(sale.date)}
+Customer: ${sale.customerName}
+
+*Dispatched Items:*
+${sale.lineItems.map(item => `• ${item.crateSize} Crate ${item.grade ? `[${item.grade}]` : ''}: ${item.quantity} qty @ Rs ${item.ratePerCrate} = Rs ${item.total}`).join('\n')}
+
+*Grand Total Amount:* Rs ${sale.totalAmount}
+*Paid Amount:* Rs ${sale.paidAmount} (${sale.paymentMethod})
+*Balance Due Added:* Rs ${sale.balanceAdded}
+
+Thank you for trading with T.S.K TRADERS!
+APMC Mandi Yard`;
+
+  const fileName = `${sale.invoiceNo}_${sale.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  const doc = createSaleInvoicePDFDoc(sale);
+  const pdfBlob = doc.output('blob');
+  const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+  // 1-Click Native Web Share API (Attaches PDF file directly into WhatsApp on supported devices/mobiles)
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+    try {
+      await navigator.share({
+        title: `TSK Mandi Invoice #${sale.invoiceNo}`,
+        text: message,
+        files: [pdfFile],
+      });
+      return;
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.log('Native file share failed, falling back:', err);
+      } else {
+        return; // User cancelled share sheet
+      }
+    }
+  }
+
+  // Fallback for Desktop Web Browsers: Download PDF file & Open customer's WhatsApp chat
+  doc.save(fileName);
+  const targetPath = cleanPhone ? cleanPhone : '';
+  const whatsappUrl = `https://wa.me/${targetPath}?text=${encodeURIComponent(message)}`;
+  window.open(whatsappUrl, '_blank');
+  alert(`📄 Invoice PDF (${fileName}) downloaded!\n💬 WhatsApp chat opened for ${sale.customerName}.\n\nYou can attach the downloaded PDF file into the WhatsApp chat.`);
 }
 
 export function generatePassbookPDF(entityName: string, entityType: 'Customer' | 'Supplier', entries: PassbookEntry[], pendingBalance: number) {
