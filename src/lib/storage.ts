@@ -29,6 +29,26 @@ export function getDemoAppState(): AppState {
   };
 }
 
+export function getEmptyAppState(adminPin: string = '1234'): AppState {
+  return {
+    suppliers: [],
+    customers: [],
+    inventory: {
+      smallCratesCount: 0,
+      bigCratesCount: 0,
+      smallAvgCost: 0,
+      bigAvgCost: 0,
+      gradeStocks: [],
+    },
+    purchases: [],
+    sales: [],
+    passbookEntries: [],
+    emptyCrateLogs: [],
+    wastageLogs: [],
+    adminPin: adminPin || '1234',
+  };
+}
+
 export function loadAppState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -38,16 +58,23 @@ export function loadAppState(): AppState {
       return defaultState;
     }
     const parsed = JSON.parse(raw) as AppState;
-    if (!parsed.adminPin) {
-      parsed.adminPin = '1234';
-    }
-    // If state is completely empty, populate demo data
-    if ((!parsed.suppliers || parsed.suppliers.length === 0) && (!parsed.sales || parsed.sales.length === 0)) {
-      const defaultState = getDemoAppState();
-      saveAppState(defaultState);
-      return defaultState;
-    }
-    return parsed;
+    return {
+      suppliers: parsed.suppliers || [],
+      customers: parsed.customers || [],
+      inventory: parsed.inventory || {
+        smallCratesCount: 0,
+        bigCratesCount: 0,
+        smallAvgCost: 0,
+        bigAvgCost: 0,
+        gradeStocks: [],
+      },
+      purchases: parsed.purchases || [],
+      sales: parsed.sales || [],
+      passbookEntries: parsed.passbookEntries || [],
+      emptyCrateLogs: parsed.emptyCrateLogs || [],
+      wastageLogs: parsed.wastageLogs || [],
+      adminPin: parsed.adminPin || '1234',
+    };
   } catch (error) {
     console.error('Failed to load state from LocalStorage:', error);
     return getDemoAppState();
@@ -62,6 +89,12 @@ export function saveAppState(state: AppState): void {
   }
 }
 
+export function clearAllAppState(currentPin?: string): AppState {
+  const emptyState = getEmptyAppState(currentPin || '1234');
+  saveAppState(emptyState);
+  return emptyState;
+}
+
 export function resetAppStateToDemo(): AppState {
   const demoState = getDemoAppState();
   saveAppState(demoState);
@@ -74,9 +107,21 @@ export function exportAppStateToJson(state: AppState): string {
 
 export function importAppStateFromJson(jsonString: string): AppState {
   const parsed = JSON.parse(jsonString);
-  if (!parsed.suppliers || !parsed.customers || !parsed.inventory) {
+  if (!parsed.suppliers && !parsed.customers && !parsed.purchases && !parsed.sales) {
     throw new Error('Invalid backup file format.');
   }
-  saveAppState(parsed);
-  return parsed;
+  const cleanState: AppState = {
+    suppliers: parsed.suppliers || [],
+    customers: parsed.customers || [],
+    inventory: parsed.inventory || { smallCratesCount: 0, bigCratesCount: 0, smallAvgCost: 0, bigAvgCost: 0, gradeStocks: [] },
+    purchases: parsed.purchases || [],
+    sales: parsed.sales || [],
+    passbookEntries: parsed.passbookEntries || [],
+    emptyCrateLogs: parsed.emptyCrateLogs || [],
+    wastageLogs: parsed.wastageLogs || [],
+    adminPin: parsed.adminPin || '1234',
+  };
+  saveAppState(cleanState);
+  return cleanState;
 }
+

@@ -8,6 +8,7 @@ interface NavbarProps {
   setActiveTab: (tab: string) => void;
   appState: AppState;
   setAppState: React.Dispatch<React.SetStateAction<AppState>>;
+  onClearData: () => void;
   onResetDemo: () => void;
   onLockApp: () => void;
 }
@@ -17,6 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   appState,
   setAppState,
+  onClearData,
   onResetDemo,
   onLockApp,
 }) => {
@@ -150,13 +152,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => {
                 requestPasswordAuth(
-                  'Clear All Mandi Data',
-                  'This action will permanently wipe all purchases, sales, customers, suppliers, passbooks, and crate records!',
-                  () => onResetDemo()
+                  'Clear All Mandi Data (Wipe to Zero)',
+                  'This action will permanently wipe all purchases, sales, customers, suppliers, passbooks, and empty crate records so you can start fresh with zero data!',
+                  () => {
+                    onClearData();
+                    alert('✅ All Mandi data has been successfully cleared to 0!');
+                  }
                 );
               }}
-              title="Clear All Data"
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 transition-all text-xs flex items-center gap-1.5"
+              title="Wipe all data to 0"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 hover:text-rose-300 transition-all text-xs flex items-center gap-1.5 font-semibold"
             >
               <RotateCcw className="w-4 h-4" />
               <span className="hidden md:inline">Clear Data</span>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { loadAppState, saveAppState, resetAppStateToDemo, AppState } from './lib/storage';
+import { loadAppState, saveAppState, resetAppStateToDemo, clearAllAppState, AppState } from './lib/storage';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { ProcurementModule } from './components/ProcurementModule';
@@ -47,6 +47,11 @@ export function App() {
     setAppState(prev => ({ ...prev, adminPin: newPin }));
   };
 
+  const handleClearData = () => {
+    const cleanState = clearAllAppState(appState.adminPin);
+    setAppState(cleanState);
+  };
+
   const handleResetDemo = () => {
     const demoState = resetAppStateToDemo();
     setAppState(demoState);
@@ -76,6 +81,7 @@ export function App() {
         setActiveTab={setActiveTab}
         appState={appState}
         setAppState={setAppState}
+        onClearData={handleClearData}
         onResetDemo={handleResetDemo}
         onLockApp={handleLockApp}
       />
