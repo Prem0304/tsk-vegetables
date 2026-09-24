@@ -22,8 +22,9 @@ import {
 import { AppState } from '../lib/storage';
 import { Customer, PassbookEntry, Sale } from '../types';
 import { parseCustomerExcel, downloadSampleCustomerExcel, exportCustomersToExcel, exportPassbookToExcel } from '../lib/excel';
-import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, shareInvoicePDFOnWhatsApp, printInvoiceElement } from '../lib/pdf';
+import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, shareInvoicePDFOnWhatsApp, printInvoiceElement, printPassbookElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
+import { PrintablePassbook } from './PrintablePassbook';
 import { formatDateWithDay, formatPhoneForWhatsApp } from '../lib/dateUtils';
 
 interface CustomerManagementProps {
@@ -48,6 +49,9 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const [importing, setImporting] = useState<boolean>(false);
   const [importResult, setImportResult] = useState<any>(null);
 
+  // Mandi Bill-Styled Passbook Preview Modal State
+  const [showPassbookPreview, setShowPassbookPreview] = useState<boolean>(false);
+
   // New Customer State
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [custName, setCustName] = useState<string>('');
@@ -70,7 +74,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
   // Search and Filtered Customers
   useEffect(() => {
-    if (showImportModal || showAddModal) {
+    if (showImportModal || showAddModal || showPassbookPreview) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -78,7 +82,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     return () => {
       document.body.style.overflow = '';
     };
-  }, [showImportModal, showAddModal]);
+  }, [showImportModal, showAddModal, showPassbookPreview]);
   const filteredCustomers = appState.customers.filter((c) => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           c.phone.includes(searchTerm) ||
@@ -419,6 +423,15 @@ Thank you!`;
                     >
                       <Wallet className="w-4 h-4" />
                       + Receive Payment
+                    </button>
+
+                    <button
+                      onClick={() => setShowPassbookPreview(true)}
+                      className="glass-button-secondary text-xs px-3 py-2 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/30 flex items-center gap-1.5 font-semibold"
+                      title="View & Print Traditional Bill-Styled Passbook"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      View Mandi Passbook Bill
                     </button>
 
                     <button
@@ -1038,6 +1051,64 @@ Thank you!`;
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Mandi Bill-Styled Passbook Preview Modal */}
+      {showPassbookPreview && selectedCustomer && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 text-center max-h-[90vh] overflow-y-auto my-auto flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Customer Passbook Ledger Statement</h3>
+                  <p className="text-xs text-slate-400">
+                    Traditional Mandi Bill Format for <strong className="text-slate-200">{selectedCustomer.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPassbookPreview(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Passbook Container */}
+            <div className="overflow-y-auto flex-1 p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <PrintablePassbook
+                entityName={selectedCustomer.name}
+                entityType="Customer"
+                entries={customerPassbook}
+                pendingBalance={selectedCustomer.pendingBalance}
+                phone={selectedCustomer.phone}
+                location={selectedCustomer.shopLocation}
+              />
+            </div>
+
+            {/* Action Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => printPassbookElement(`passbook-customer-${selectedCustomer.name.replace(/[^a-zA-Z0-9]/g, '_')}`)}
+                className="w-full glass-button-primary text-xs py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 flex items-center justify-center gap-2 font-bold"
+              >
+                <Printer className="w-4 h-4" />
+                Print Passbook (Thermal / A4)
+              </button>
+
+              <button
+                onClick={() => generatePassbookPDF(selectedCustomer.name, 'Customer', customerPassbook, selectedCustomer.pendingBalance)}
+                className="w-full glass-button-secondary text-xs py-2.5 flex items-center justify-center gap-2 font-semibold"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF Passbook
+              </button>
+            </div>
           </div>
         </div>
       )}

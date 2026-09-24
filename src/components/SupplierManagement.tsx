@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Search, Plus, Download, Wallet, Phone, MapPin, CheckCircle2, FileSpreadsheet, X } from 'lucide-react';
+import { Truck, Search, Plus, Download, Wallet, Phone, MapPin, CheckCircle2, FileSpreadsheet, X, Printer, FileText } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Supplier, PassbookEntry } from '../types';
-import { generatePassbookPDF } from '../lib/pdf';
+import { generatePassbookPDF, printPassbookElement } from '../lib/pdf';
 import { exportPassbookToExcel } from '../lib/excel';
+import { PrintablePassbook } from './PrintablePassbook';
 import { formatDateWithDay } from '../lib/dateUtils';
 
 interface SupplierManagementProps {
@@ -33,8 +34,11 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
   const [supAddress, setSupAddress] = useState<string>('');
   const [openingBalance, setOpeningBalance] = useState<string>('0');
 
+  // Mandi Bill-Styled Passbook Preview Modal State
+  const [showPassbookPreview, setShowPassbookPreview] = useState<boolean>(false);
+
   useEffect(() => {
-    if (showPayModal || showAddModal) {
+    if (showPayModal || showAddModal || showPassbookPreview) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -42,7 +46,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
     return () => {
       document.body.style.overflow = '';
     };
-  }, [showPayModal, showAddModal]);
+  }, [showPayModal, showAddModal, showPassbookPreview]);
 
   const selectedSupplier = appState.suppliers.find(s => s.id === selectedSupplierId);
   const supplierPassbook = appState.passbookEntries.filter(
@@ -248,6 +252,15 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                   >
                     <Wallet className="w-4 h-4" />
                     Record Settlement / Pay Supplier
+                  </button>
+
+                  <button
+                    onClick={() => setShowPassbookPreview(true)}
+                    className="glass-button-secondary text-xs px-3 py-2 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/30 flex items-center gap-1.5 font-semibold"
+                    title="View & Print Traditional Bill-Styled Passbook"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    View Mandi Passbook Bill
                   </button>
 
                   <button
@@ -531,6 +544,64 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Mandi Bill-Styled Passbook Preview Modal */}
+      {showPassbookPreview && selectedSupplier && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-panel w-full max-w-4xl p-6 space-y-5 bg-slate-900 border-slate-700 text-center max-h-[90vh] overflow-y-auto my-auto flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Supplier Passbook Ledger Statement</h3>
+                  <p className="text-xs text-slate-400">
+                    Traditional Mandi Bill Format for <strong className="text-slate-200">{selectedSupplier.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPassbookPreview(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Passbook Container */}
+            <div className="overflow-y-auto flex-1 p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <PrintablePassbook
+                entityName={selectedSupplier.name}
+                entityType="Supplier"
+                entries={supplierPassbook}
+                pendingBalance={selectedSupplier.pendingBalance}
+                phone={selectedSupplier.phone}
+                location={selectedSupplier.address}
+              />
+            </div>
+
+            {/* Action Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800 flex-shrink-0">
+              <button
+                onClick={() => printPassbookElement(`passbook-supplier-${selectedSupplier.name.replace(/[^a-zA-Z0-9]/g, '_')}`)}
+                className="w-full glass-button-primary text-xs py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 flex items-center justify-center gap-2 font-bold"
+              >
+                <Printer className="w-4 h-4" />
+                Print Passbook (Thermal / A4)
+              </button>
+
+              <button
+                onClick={() => generatePassbookPDF(selectedSupplier.name, 'Supplier', supplierPassbook, selectedSupplier.pendingBalance)}
+                className="w-full glass-button-secondary text-xs py-2.5 flex items-center justify-center gap-2 font-semibold"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF Passbook
+              </button>
+            </div>
           </div>
         </div>
       )}

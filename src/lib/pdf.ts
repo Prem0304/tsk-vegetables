@@ -200,6 +200,48 @@ APMC Mandi Yard`;
   alert(`📄 Invoice PDF (${fileName}) downloaded!\n💬 WhatsApp chat opened for ${sale.customerName}.\n\nYou can attach the downloaded PDF file into the WhatsApp chat.`);
 }
 
+export function printPassbookElement(elementId: string) {
+  const elem = document.getElementById(elementId);
+  if (!elem) {
+    window.print();
+    return;
+  }
+
+  const printWindow = window.open('', '_blank', 'width=900,height=1000');
+  if (!printWindow) {
+    window.print();
+    return;
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Passbook_Statement</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700;900&display=swap');
+          body { font-family: 'Noto Sans Tamil', sans-serif; background: #ffffff; margin: 0; padding: 16px; }
+          @media print {
+            body { padding: 0; }
+            .print\\:hidden { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        ${elem.outerHTML}
+        <script>
+          setTimeout(() => {
+            window.print();
+            window.close();
+          }, 600);
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 export function generatePassbookPDF(entityName: string, entityType: 'Customer' | 'Supplier', entries: PassbookEntry[], pendingBalance: number) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -207,58 +249,64 @@ export function generatePassbookPDF(entityName: string, entityType: 'Customer' |
     format: 'a4',
   });
 
-  // Header
+  // Header Banner - Traditional Mandi Style
   doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, 210, 32, 'F');
+  doc.rect(0, 0, 210, 36, 'F');
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
+  doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text('T.S.K TRADERS', 14, 15);
+  doc.text('T.S.K TRADERS', 14, 13);
 
-  doc.setFontSize(10);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
-  doc.text(`OFFICIAL ${entityType.toUpperCase()} LEDGER / PASSBOOK STATEMENT`, 14, 22);
+  doc.text('Ph: 9715813463 / 8190801030', 14, 19);
+  doc.text('Sri Vazhagurunathan Thunai | Sri Angala Eswari Thunai', 14, 24);
+  doc.text('Wholesale Tomato Commission Mandi Yard', 14, 29);
 
-  doc.setFontSize(9);
-  doc.text(`Ph: 9715813463 / 8190801030 | Generated: ${new Date().toLocaleDateString('en-IN')}`, 120, 22);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${entityType.toUpperCase()} LEDGER PASSBOOK`, 128, 14);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Statement Date: ${formatDateWithDay(new Date().toISOString().slice(0, 10))}`, 128, 20);
 
   // Entity Info Box
   doc.setTextColor(15, 23, 42);
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(14, 38, 182, 22, 2, 2, 'F');
+  doc.roundedRect(14, 42, 182, 22, 2, 2, 'F');
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${entityType}: ${entityName}`, 20, 46);
+  doc.text(`Account Holder: ${entityName}`, 20, 50);
 
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Current Outstanding ${entityType === 'Customer' ? 'Receivable' : 'Payable'}:`, 20, 53);
+  doc.text(`Current Outstanding ${entityType === 'Customer' ? 'Receivable Balance' : 'Payable Debt'}:`, 20, 57);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(pendingBalance > 0 ? 220 : 22, pendingBalance > 0 ? 38 : 163, pendingBalance > 0 ? 38 : 74);
-  doc.text(`Rs ${pendingBalance.toLocaleString('en-IN')}`, 110, 53);
+  doc.text(`Rs ${pendingBalance.toLocaleString('en-IN')}`, 125, 57);
 
   // Table Headers
-  let yPos = 68;
+  let yPos = 70;
   doc.setFillColor(15, 23, 42);
   doc.rect(14, yPos, 182, 8, 'F');
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('Date', 18, yPos + 5.5);
-  doc.text('Type', 42, yPos + 5.5);
-  doc.text('Reference / Note', 80, yPos + 5.5);
-  doc.text('Debit (Rs)', 130, yPos + 5.5);
-  doc.text('Credit (Rs)', 155, yPos + 5.5);
-  doc.text('Balance (Rs)', 178, yPos + 5.5);
+  doc.text('Date & Day', 18, yPos + 5.5);
+  doc.text('Type', 62, yPos + 5.5);
+  doc.text('Reference / Notes', 95, yPos + 5.5);
+  doc.text(entityType === 'Customer' ? 'Billed (Rs)' : 'Purchased (Rs)', 138, yPos + 5.5);
+  doc.text(entityType === 'Customer' ? 'Received (Rs)' : 'Paid (Rs)', 162, yPos + 5.5);
+  doc.text('Balance (Rs)', 184, yPos + 5.5);
 
   yPos += 8;
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
 
   entries.forEach((entry, idx) => {
-    if (yPos > 270) {
+    if (yPos > 265) {
       doc.addPage();
       yPos = 20;
     }
@@ -271,24 +319,41 @@ export function generatePassbookPDF(entityName: string, entityType: 'Customer' |
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'normal');
     doc.text(formatDateWithDay(entry.date), 18, yPos + 5);
-    doc.text(entry.transactionType.replace('_', ' '), 45, yPos + 5);
+    doc.text(entry.transactionType.replace('_', ' '), 62, yPos + 5);
 
     const refNote = entry.referenceId ? `${entry.referenceId} ${entry.notes ? '- ' + entry.notes : ''}` : entry.notes || '-';
-    doc.text(refNote.substring(0, 32), 80, yPos + 5);
+    doc.text(refNote.substring(0, 26), 95, yPos + 5);
 
     if (entry.type === 'Debit') {
-      doc.text(`${entry.amount}`, 130, yPos + 5);
-      doc.text('-', 155, yPos + 5);
+      doc.text(`Rs ${entry.amount.toLocaleString('en-IN')}`, 138, yPos + 5);
+      doc.text('-', 162, yPos + 5);
     } else {
-      doc.text('-', 130, yPos + 5);
-      doc.text(`${entry.amount}`, 155, yPos + 5);
+      doc.text('-', 138, yPos + 5);
+      doc.text(`Rs ${entry.amount.toLocaleString('en-IN')}`, 162, yPos + 5);
     }
 
     doc.setFont('helvetica', 'bold');
-    doc.text(`${entry.runningBalance}`, 178, yPos + 5);
+    doc.text(`Rs ${entry.runningBalance.toLocaleString('en-IN')}`, 184, yPos + 5);
 
     yPos += 7;
   });
+
+  // Footer Signatures
+  if (yPos > 250) {
+    doc.addPage();
+    yPos = 20;
+  }
+  yPos += 10;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${entityType} Signature`, 18, yPos);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('For T.S.K TRADERS', 160, yPos);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text('(Authorized Signatory)', 160, yPos + 4);
 
   doc.save(`TSK_${entityType}_Passbook_${entityName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
 }
