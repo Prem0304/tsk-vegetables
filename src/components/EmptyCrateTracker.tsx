@@ -214,7 +214,7 @@ export const EmptyCrateTracker: React.FC<EmptyCrateTrackerProps> = ({
             className="glass-button-primary text-xs px-4 py-2 bg-gradient-to-r from-amber-600 to-emerald-600"
           >
             <ArrowRightLeft className="w-4 h-4" />
-            + Record Crate Return / Movement
+            Record Crate Return / Movement
           </button>
         </div>
       </div>

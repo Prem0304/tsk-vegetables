@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Store, RotateCcw, Download, Upload, Box, Lock, Users, Truck, ShoppingCart, TrendingUp, Menu, X } from 'lucide-react';
+import { Store, RotateCcw, Download, Upload, Box, Lock, Users, Truck, ShoppingCart, TrendingUp, Menu, X, Package } from 'lucide-react';
 import { AppState, exportAppStateToJson, importAppStateFromJson } from '../lib/storage';
 import { VerifyPasswordModal } from './VerifyPasswordModal';
 
@@ -70,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', icon: Store },
-    { id: 'procurement', label: 'Procurement', shortLabel: 'Inward', icon: Box },
+    { id: 'procurement', label: 'Procurement', shortLabel: 'Inward', icon: Package },
     { id: 'sales', label: 'Sales Dispatch', shortLabel: 'Sales', icon: ShoppingCart },
     { id: 'customers', label: 'Customers', shortLabel: 'Buyers', icon: Users },
     { id: 'suppliers', label: 'Suppliers', shortLabel: 'Sellers', icon: Truck },

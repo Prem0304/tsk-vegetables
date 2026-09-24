@@ -134,14 +134,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
             className="glass-button-primary text-sm px-4 py-2.5"
           >
             <PlusCircle className="w-4 h-4" />
-            + New Purchase
+            New Purchase
           </button>
           <button
             onClick={onOpenSales}
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-900/30 flex items-center gap-2 transition-all active:scale-[0.98]"
           >
             <ShoppingCart className="w-4 h-4" />
-            + New Sale
+            New Sale
           </button>
           <button
             onClick={() => onOpenPaymentModal('Customer')}

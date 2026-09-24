@@ -159,7 +159,7 @@ export const SupplierManagement: React.FC<SupplierManagementProps> = ({
           className="glass-button-primary text-xs px-4 py-2"
         >
           <Plus className="w-4 h-4" />
-          + Add New Supplier
+          Add New Supplier
         </button>
       </div>
 

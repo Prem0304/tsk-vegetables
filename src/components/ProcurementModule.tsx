@@ -540,7 +540,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
           className="glass-button-primary text-sm"
         >
           <Plus className="w-4 h-4" />
-          + Record New Purchase Order
+          Record New Purchase Order
         </button>
       </div>
 
@@ -639,7 +639,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                       onClick={() => setShowAddSupplier(true)}
                       className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-medium"
                     >
-                      <UserPlus className="w-3 h-3" /> + Add New Supplier
+                      <UserPlus className="w-3 h-3" /> Add New Supplier
                     </button>
                   </div>
                   <select
@@ -679,7 +679,7 @@ export const ProcurementModule: React.FC<ProcurementModuleProps> = ({
                     onClick={addLineItem}
                     className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
                   >
-                    <Plus className="w-3.5 h-3.5" /> + Add Grade / Price Line
+                    <Plus className="w-3.5 h-3.5" /> Add Grade / Price Line
                   </button>
                 </div>
 

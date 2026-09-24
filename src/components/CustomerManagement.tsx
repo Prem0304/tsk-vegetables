@@ -303,7 +303,7 @@ Thank you!`;
             className="glass-button-primary text-xs px-4 py-2"
           >
             <Plus className="w-4 h-4" />
-            + New Customer
+            New Customer
           </button>
         </div>
       </div>

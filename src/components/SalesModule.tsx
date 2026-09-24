@@ -421,7 +421,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
           className="glass-button-primary text-sm bg-gradient-to-r from-emerald-600 to-teal-600"
         >
           <Plus className="w-4 h-4" />
-          + Create New Outward Sale
+          Create New Outward Sale
         </button>
       </div>
 
@@ -526,7 +526,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                         onClick={() => setShowAddCustomer(true)}
                         className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-medium"
                       >
-                        <UserPlus className="w-3 h-3" /> + Add New Customer
+                        <UserPlus className="w-3 h-3" /> Add New Customer
                       </button>
                     </div>
                     <select
@@ -596,7 +596,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                     onClick={addLineItem}
                     className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20"
                   >
-                    <Plus className="w-3.5 h-3.5" /> + Add Crate Line
+                    <Plus className="w-3.5 h-3.5" /> Add Crate Line
                   </button>
                 </div>
 
