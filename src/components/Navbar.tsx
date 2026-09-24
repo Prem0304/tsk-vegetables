@@ -94,11 +94,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     T.S.K VEGETABLES
                   </h1>
                   <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    SINGLE ADMIN
+                    BY MNC ENTERPRISES
                   </span>
                 </div>
                 <p className="text-[10px] sm:text-xs text-slate-400 hidden sm:block">
-                  Wholesale Tomato Mandi Management System
+                  Wholesale Tomato Mandi Operations • Created by MNC Enterprises
                 </p>
               </div>
             </div>

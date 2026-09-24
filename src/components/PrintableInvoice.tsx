@@ -141,7 +141,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ sale, custom
             * Please verify crate counts and return empty crates promptly.
           </p>
           <p className="text-[10px] text-slate-500 italic">
-            Computer generated sales voucher — T.S.K TRADERS
+            Computer generated sales voucher — T.S.K TRADERS • Powered by MNC Enterprises
           </p>
         </div>
 

@@ -167,7 +167,9 @@ export function App() {
       <footer className="bg-slate-900/80 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
           <span>© T.S.K Vegetables • Wholesale Tomato Mandi Operations</span>
-          <span className="text-slate-400 font-mono">Single-Admin System • APMC Market Yard</span>
+          <span className="text-slate-400 font-mono">
+            Created & Maintained by <strong className="text-emerald-400 font-semibold">MNC Enterprises</strong>
+          </span>
         </div>
       </footer>
     </div>
