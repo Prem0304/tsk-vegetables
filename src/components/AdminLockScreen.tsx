@@ -92,7 +92,7 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
             T.S.K TRADERS
           </h1>
           <p className="text-xs text-emerald-400 font-semibold">
-            Created by MNC Enterprises • Wholesale Mandi Portal
+            Single-Admin Mandi Management System
           </p>
         </div>
 
