@@ -22,7 +22,7 @@ import {
 import { AppState } from '../lib/storage';
 import { Customer, PassbookEntry, Sale } from '../types';
 import { parseCustomerExcel, downloadSampleCustomerExcel, exportCustomersToExcel, exportPassbookToExcel } from '../lib/excel';
-import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, printInvoiceElement } from '../lib/pdf';
+import { generatePassbookPDF, generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, shareInvoicePDFOnWhatsApp, printInvoiceElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
 import { formatDateWithDay, formatPhoneForWhatsApp } from '../lib/dateUtils';
 
@@ -711,14 +711,14 @@ Thank you!`;
               </button>
 
               <button
-                onClick={() => shareInvoiceOnWhatsApp(
+                onClick={() => shareInvoicePDFOnWhatsApp(
                   previewSaleModal,
                   appState.customers.find(c => c.id === previewSaleModal.customerId)?.phone || selectedCustomer?.phone
                 )}
                 className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
               >
                 <Share2 className="w-4 h-4" />
-                Share Bill & PDF on WhatsApp
+                1-Click Send PDF Bill on WhatsApp
               </button>
 
               <button

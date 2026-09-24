@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Trash2, AlertTriangle, Share2, Download, CheckCircle2, UserPlus, X, Box, ShieldAlert, Printer } from 'lucide-react';
 import { AppState } from '../lib/storage';
 import { Sale, SaleLineItem, CrateSize, Customer, PassbookEntry, EmptyCrateLog, STANDARD_GRADES } from '../types';
-import { generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, printInvoiceElement } from '../lib/pdf';
+import { generateSaleInvoicePDF, generateWhatsAppBillLink, shareInvoiceOnWhatsApp, shareInvoicePDFOnWhatsApp, printInvoiceElement } from '../lib/pdf';
 import { PrintableInvoice } from './PrintableInvoice';
 import { formatDateWithDay } from '../lib/dateUtils';
 
@@ -474,15 +474,16 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
                     >
                       <Download className="w-3.5 h-3.5" />
                     </button>
-                    <a
-                      href={generateWhatsAppBillLink(sale)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => {
+                        const custPhone = appState.customers.find(c => c.id === sale.customerId)?.phone;
+                        shareInvoicePDFOnWhatsApp(sale, custPhone);
+                      }}
                       className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 inline-block"
-                      title="Share Receipt on WhatsApp"
+                      title="1-Click Send PDF Bill on WhatsApp"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                    </a>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -812,14 +813,14 @@ export const SalesModule: React.FC<SalesModuleProps> = ({
               </button>
 
               <button
-                onClick={() => shareInvoiceOnWhatsApp(
+                onClick={() => shareInvoicePDFOnWhatsApp(
                   previewSale,
                   appState.customers.find(c => c.id === previewSale.customerId)?.phone
                 )}
                 className="w-full glass-button-primary text-xs py-2.5 bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-2 font-bold"
               >
                 <Share2 className="w-4 h-4" />
-                Share Bill & PDF on WhatsApp
+                1-Click Send PDF Bill on WhatsApp
               </button>
 
               <button

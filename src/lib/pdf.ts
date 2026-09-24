@@ -317,6 +317,53 @@ APMC Mandi Yard`;
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
+export async function shareInvoicePDFOnWhatsApp(sale: Sale, customerPhone?: string): Promise<void> {
+  const cleanPhone = formatPhoneForWhatsApp(customerPhone);
+  const pdfDoc = createSaleInvoicePDFDoc(sale);
+  const pdfBlob = pdfDoc.output('blob');
+  const fileName = `TSK_Invoice_${sale.invoiceNo}.pdf`;
+  const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+  const message = `*T.S.K TRADERS - தக்காளி காய்கனி கமிஷன் மண்டி*
+Ph: 9715813463 / 8190801030
+
+*INVOICE RECEIPT:* #${sale.invoiceNo}
+Date: ${formatDateWithDay(sale.date)}
+Customer: ${sale.customerName}
+
+*Dispatched Items:*
+${sale.lineItems.map(item => `• ${item.crateSize} Crate ${item.grade ? `[${item.grade}]` : ''}: ${item.quantity} qty @ Rs ${item.ratePerCrate} = Rs ${item.total}`).join('\n')}
+
+*Grand Total Amount:* Rs ${sale.totalAmount}
+*Paid Amount:* Rs ${sale.paidAmount} (${sale.paymentMethod})
+*Balance Due Added:* Rs ${sale.balanceAdded}
+
+Thank you for trading with T.S.K TRADERS!
+APMC Mandi Yard`;
+
+  if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+    try {
+      await navigator.share({
+        files: [pdfFile],
+        title: `TSK Invoice #${sale.invoiceNo}`,
+        text: message,
+      });
+      return;
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.warn('Web Share failed, falling back to download + WhatsApp:', err);
+      } else {
+        return;
+      }
+    }
+  }
+
+  // Fallback for desktop/browsers: Auto-download PDF file & open WhatsApp Web/App directly to customer phone
+  pdfDoc.save(fileName);
+  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  window.open(waUrl, '_blank');
+}
+
 export function generateDailyCrateSalesPDF(sales: Sale[], periodTitle: string): void {
   const doc = new jsPDF();
 
